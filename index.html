@@ -90,7 +90,7 @@ body { font-family: 'Helvetica Neue', Arial, sans-serif; background:#1a1a2e; }
   <button class="toggle-btn active" id="btn-date" onclick="setMode('date')">確認日</button>
   <button class="toggle-btn" id="btn-status" onclick="setMode('status')">水状態</button>
 </div>
-<div id="stats">圃場 <b id="total-count">0</b> 枚<br><span id="alert-count" style="color:#e74c3c"></span></div>
+<div id="stats">圃場 <b id="total-count">0</b> 枚<br><span id="alert-count" style="color:#e74c3c"></span><br><span id="user-display" style="color:#666;font-size:11px;cursor:pointer" onclick="changeUser()"></span></div>
 <div id="legend"></div>
 <div class="overlay" id="overlay"></div>
 <div id="panel">
@@ -147,8 +147,24 @@ function updateLegend() {
   ).join('');
 }
 
-// Local storage for records
-let records = JSON.parse(localStorage.getItem('osf_water') || '{}');
+// GAS backend
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwcV7O5APU32iUPODpt6UOl_M-7_FavWZjGKaFfwaHYLLj4QU0w07UjZv7dt0s-6zqy/exec';
+let records = {};
+let currentUser = localStorage.getItem('osf_user') || '';
+
+// Load records from GAS
+async function loadRecords() {
+  try {
+    const res = await fetch(GAS_URL);
+    records = await res.json();
+    renderMap();
+  } catch(e) {
+    console.error('記録の読み込みに失敗:', e);
+  }
+}
+
+// Auto reload every 60 seconds
+setInterval(loadRecords, 60000);
 let selectedField = null;
 let selectedStatus = null;
 let layers = {};
@@ -267,28 +283,59 @@ function closePanel() {
   selectedField = null;
 }
 
-document.getElementById('save-btn').onclick = () => {
+document.getElementById('save-btn').onclick = async () => {
   if (!selectedField || !selectedStatus) {
     alert('水の状態を選択してください');
     return;
   }
-  const name = selectedField.properties.name;
+  if (!currentUser) {
+    const name = prompt('担当者名を入力してください（例：水谷）');
+    if (!name) return;
+    currentUser = name;
+    localStorage.setItem('osf_user', name);
+  }
+  const fieldName = selectedField.properties.name;
   const memo = document.getElementById('memo-area').value;
-  const prevStatus = records[name] ? records[name].status : null;
-  // 確認のみ: keep previous water status, just update time
+  const prevStatus = records[fieldName] ? records[fieldName].status : null;
   const newStatus = selectedStatus === '確認のみ' && prevStatus && prevStatus !== '確認のみ'
     ? prevStatus : selectedStatus;
-  records[name] = { status: newStatus, checkedOnly: selectedStatus === '確認のみ', memo, time: new Date().toISOString() };
-  localStorage.setItem('osf_water', JSON.stringify(records));
+
+  // Optimistic update
+  records[fieldName] = { status: newStatus, checkedOnly: selectedStatus === '確認のみ', person: currentUser, memo, time: new Date().toISOString() };
   closePanel();
   renderMap();
+
+  // Save to GAS
+  try {
+    await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ name: fieldName, status: newStatus, person: currentUser, memo })
+    });
+  } catch(e) {
+    alert('保存に失敗しました。通信状況を確認してください。');
+  }
 };
 
 document.getElementById('close-btn').onclick = closePanel;
 document.getElementById('overlay').onclick = closePanel;
 
 updateLegend();
-renderMap();
+
+// Set user display
+function updateUserDisplay() {
+  const el = document.getElementById('user-display');
+  el.textContent = currentUser ? '担当：' + currentUser + ' ✎' : '担当者未設定（タップ）';
+}
+function changeUser() {
+  const name = prompt('担当者名を入力してください', currentUser);
+  if (name !== null) {
+    currentUser = name;
+    localStorage.setItem('osf_user', name);
+    updateUserDisplay();
+  }
+}
+updateUserDisplay();
+loadRecords();
 </script>
 </body>
 </html>
