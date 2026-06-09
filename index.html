@@ -58,6 +58,20 @@ body { font-family: 'Helvetica Neue', Arial, sans-serif; background:#1a1a2e; }
 .legend-item { display:flex; align-items:center; gap:6px; margin-bottom:4px; }
 .legend-dot { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
 
+/* Toggle */
+#mode-toggle {
+  position:fixed; top:16px; left:50%; transform:translateX(-50%);
+  z-index:999; background:rgba(255,255,255,0.95);
+  border-radius:20px; padding:4px; display:flex; gap:2px;
+  box-shadow:0 2px 10px rgba(0,0,0,0.2);
+}
+.toggle-btn {
+  padding:6px 14px; border:none; border-radius:16px;
+  font-size:12px; font-weight:600; cursor:pointer;
+  background:transparent; color:#666; transition:all 0.2s;
+}
+.toggle-btn.active { background:#2C4A1E; color:#fff; }
+
 /* Stats bar */
 #stats {
   position:fixed; top:16px; left:16px; background:rgba(255,255,255,0.95);
@@ -72,13 +86,12 @@ body { font-family: 'Helvetica Neue', Arial, sans-serif; background:#1a1a2e; }
 </head>
 <body>
 <div id="map"></div>
-<div id="stats">圃場 <b id="total-count">0</b> 枚<br><span id="alert-count" style="color:#e74c3c"></span></div>
-<div id="legend">
-  <div class="legend-item"><div class="legend-dot" style="background:#2ecc71"></div>1日以内</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#f39c12"></div>2〜3日</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#e74c3c"></div>4日以上</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#95a5a6"></div>未記録</div>
+<div id="mode-toggle">
+  <button class="toggle-btn active" id="btn-date" onclick="setMode('date')">確認日</button>
+  <button class="toggle-btn" id="btn-status" onclick="setMode('status')">水状態</button>
 </div>
+<div id="stats">圃場 <b id="total-count">0</b> 枚<br><span id="alert-count" style="color:#e74c3c"></span></div>
+<div id="legend"></div>
 <div class="overlay" id="overlay"></div>
 <div id="panel">
   <div id="panel-handle"></div>
@@ -99,6 +112,41 @@ const STATUS_COLORS = {
   '中干し':'#e74c3c','水尻外し':'#8e44ad','確認のみ':'#27ae60'
 };
 
+// Mode
+let currentMode = 'date';
+
+const LEGENDS = {
+  date: [
+    {color:'#2ecc71', label:'1日以内'},
+    {color:'#f39c12', label:'2〜3日'},
+    {color:'#e74c3c', label:'4日以上'},
+    {color:'#95a5a6', label:'未記録'},
+  ],
+  status: [
+    {color:'#3498db', label:'入水'},
+    {color:'#74b9ff', label:'ちょい入れ'},
+    {color:'#e67e22', label:'止水'},
+    {color:'#e74c3c', label:'中干し'},
+    {color:'#8e44ad', label:'水尻外し'},
+    {color:'#95a5a6', label:'未記録'},
+  ]
+};
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('btn-date').classList.toggle('active', mode === 'date');
+  document.getElementById('btn-status').classList.toggle('active', mode === 'status');
+  updateLegend();
+  renderMap();
+}
+
+function updateLegend() {
+  const leg = document.getElementById('legend');
+  leg.innerHTML = LEGENDS[currentMode].map(l =>
+    `<div class="legend-item"><div class="legend-dot" style="background:${l.color}"></div>${l.label}</div>`
+  ).join('');
+}
+
 // Local storage for records
 let records = JSON.parse(localStorage.getItem('osf_water') || '{}');
 let selectedField = null;
@@ -112,9 +160,37 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r
 }).addTo(map);
 L.control.zoom({position:'bottomright'}).addTo(map);
 
+// Geolocation
+const locBtn = L.control({position:'bottomright'});
+locBtn.onAdd = function() {
+  const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+  div.innerHTML = '<a href="#" title="現在地" style="font-size:18px;display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:#fff;border-radius:4px;">📍</a>';
+  div.onclick = function(e) {
+    e.preventDefault();
+    map.locate({setView:true, maxZoom:17});
+  };
+  return div;
+};
+locBtn.addTo(map);
+
+let locMarker = null;
+map.on('locationfound', function(e) {
+  if (locMarker) map.removeLayer(locMarker);
+  locMarker = L.circleMarker(e.latlng, {
+    radius:10, color:'#fff', weight:2,
+    fillColor:'#3498db', fillOpacity:0.9
+  }).addTo(map).bindPopup('現在地').openPopup();
+});
+map.on('locationerror', function() {
+  alert('現在地を取得できませんでした');
+});
+
 function getFieldColor(fieldName) {
   const rec = records[fieldName];
   if (!rec) return '#95a5a6';
+  if (currentMode === 'status') {
+    return STATUS_COLORS[rec.status] || '#95a5a6';
+  }
   const days = (Date.now() - new Date(rec.time).getTime()) / 86400000;
   if (days < 1) return '#2ecc71';
   if (days < 4) return '#f39c12';
@@ -155,7 +231,8 @@ function openPanel(feat) {
   if (rec) {
     const d = new Date(rec.time);
     const days = Math.floor((Date.now() - d.getTime()) / 86400000);
-    lastEl.textContent = `最終確認：${d.toLocaleDateString('ja')} ${d.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'})}（${days}日前）　状態：${rec.status}`;
+    const checkedLabel = rec.checkedOnly ? '（確認のみ）' : '';
+    lastEl.textContent = `最終確認：${d.toLocaleDateString('ja')} ${d.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'})}（${days}日前）${checkedLabel}　状態：${rec.status}`;
     lastEl.style.background = days >= 4 ? '#fff0f0' : '#f0fff4';
     lastEl.style.color = days >= 4 ? '#e74c3c' : '#27ae60';
   } else {
@@ -197,7 +274,11 @@ document.getElementById('save-btn').onclick = () => {
   }
   const name = selectedField.properties.name;
   const memo = document.getElementById('memo-area').value;
-  records[name] = { status: selectedStatus, memo, time: new Date().toISOString() };
+  const prevStatus = records[name] ? records[name].status : null;
+  // 確認のみ: keep previous water status, just update time
+  const newStatus = selectedStatus === '確認のみ' && prevStatus && prevStatus !== '確認のみ'
+    ? prevStatus : selectedStatus;
+  records[name] = { status: newStatus, checkedOnly: selectedStatus === '確認のみ', memo, time: new Date().toISOString() };
   localStorage.setItem('osf_water', JSON.stringify(records));
   closePanel();
   renderMap();
@@ -206,6 +287,7 @@ document.getElementById('save-btn').onclick = () => {
 document.getElementById('close-btn').onclick = closePanel;
 document.getElementById('overlay').onclick = closePanel;
 
+updateLegend();
 renderMap();
 </script>
 </body>
