@@ -120,6 +120,7 @@ body { font-family:'Helvetica Neue',Arial,sans-serif; }
 .s中干し{--c:#e74c3c} .s水尻外し{--c:#8e44ad} .s除草剤投入{--c:#27ae60} .s確認のみ{--c:#95a5a6}
 #memo { width:100%; padding:8px; border:1.5px solid #e0e0e0; border-radius:8px; font-size:13px; resize:none; margin-bottom:10px; }
 #savebtn { width:100%; padding:13px; background:#2C4A1E; color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; margin-bottom:6px; }
+#panel.edit-mode #savebtn { background:#c0392b !important; }
 #closebtn { width:100%; padding:9px; background:#f5f5f5; border:none; border-radius:10px; font-size:13px; cursor:pointer; color:#666; }
 #hist-section { margin-top:12px; border-top:1px solid #eee; padding-top:10px; display:none; }
 #hist-toggle { font-size:12px; color:#3498db; cursor:pointer; margin-bottom:6px; }
@@ -448,24 +449,19 @@ function startEdit(origTime, origStatus, origMemo){
   document.getElementById('edit-banner').style.display='block';
   document.getElementById('cancel-edit-btn').style.display='block';
   document.getElementById('panel').scrollTop=0;
-  // Button update in next tick to avoid override
-  setTimeout(()=>{
-    const btn=document.getElementById('savebtn');
-    btn.textContent='✏ 修正を保存';
-    btn.style.setProperty('background','#c0392b','important');
-    btn.style.setProperty('color','#fff','important');
-  },100);
+  document.getElementById('panel').classList.add('edit-mode');
+  document.getElementById('savebtn').textContent='✏ 修正を保存';
 }
 
 function cancelEdit(){
   editMode=false; editOrigTime=null;
   document.getElementById('panel').style.borderTop='';
   document.getElementById('panel').style.background='#fff';
+  document.getElementById('panel').classList.remove('edit-mode');
   document.getElementById('edit-banner').style.display='none';
   document.getElementById('cancel-edit-btn').style.display='none';
-  const sbtn=document.getElementById('savebtn');
-  sbtn.textContent='記録する';
-  sbtn.style.setProperty('background','#2C4A1E','important');
+  document.getElementById('panel').classList.remove('edit-mode');
+  document.getElementById('savebtn').textContent='記録する';
   document.querySelectorAll('.sbtn').forEach(b=>b.classList.remove('sel'));
   selStatus=null;
   document.getElementById('memo').value='';
