@@ -194,7 +194,7 @@ const BM = {"AR": "有富", "NK": "中村", "SS": "篠坂", "KM": "北村", "NI"
 const S_OPTS = ['入水','ちょい入れ','止水','中干し','水尻外し','除草剤投入','確認のみ'];
 const S_COL = {入水:'#3498db',ちょい入れ:'#5dade2',止水:'#e67e22',中干し:'#e74c3c',水尻外し:'#8e44ad',除草剤投入:'#27ae60',確認のみ:'#95a5a6'};
 const LEGS = {
-  date:[{c:'#2ecc71',l:'1日以内'},{c:'#f39c12',l:'2〜3日'},{c:'#e74c3c',l:'4日以上'},{c:'#27ae60',l:'除草剤投入中'},{c:'#95a5a6',l:'未記録'}],
+  date:[{c:'#2ecc71',l:'2日以内'},{c:'#f39c12',l:'3日'},{c:'#e74c3c',l:'4日以上'},{c:'#27ae60',l:'除草剤投入中'},{c:'#95a5a6',l:'未記録'}],
   status:[{c:'#3498db',l:'入水'},{c:'#5dade2',l:'ちょい入れ'},{c:'#e67e22',l:'止水'},{c:'#e74c3c',l:'中干し'},{c:'#8e44ad',l:'水尻外し'},{c:'#27ae60',l:'除草剤投入'},{c:'#95a5a6',l:'未記録'}]
 };
 
@@ -285,7 +285,7 @@ function fieldColor(name){
   if(herbActive(r))return '#27ae60';
   if(mode==='status')return S_COL[r.status]||'#95a5a6';
   const d=(Date.now()-new Date(r.time).getTime())/86400000;
-  return d<1?'#2ecc71':d<4?'#f39c12':'#e74c3c';
+  return d<2?'#2ecc71':d<4?'#f39c12':'#e74c3c';
 }
 function fieldOpacity(feat){
   if(selBlocks.size===0)return 0.75;
