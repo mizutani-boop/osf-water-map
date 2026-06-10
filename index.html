@@ -136,6 +136,11 @@ body { font-family:'Helvetica Neue',Arial,sans-serif; }
   font-size:11px; color:#3498db; background:none; border:1px solid #3498db;
   border-radius:6px; padding:3px 8px; cursor:pointer; margin-left:6px;
 }
+#edit-savebtn {
+  width:100%; padding:13px; background:#c0392b; color:#fff;
+  border:none; border-radius:10px; font-size:15px; font-weight:700;
+  cursor:pointer; margin-bottom:6px; display:none;
+}
 #cancel-edit-btn {
   width:100%; padding:9px; background:#fff3cd; border:1.5px solid #f39c12;
   border-radius:10px; font-size:13px; cursor:pointer; color:#856404;
@@ -450,7 +455,8 @@ function startEdit(origTime, origStatus, origMemo){
   document.getElementById('cancel-edit-btn').style.display='block';
   document.getElementById('panel').scrollTop=0;
   document.getElementById('panel').classList.add('edit-mode');
-  document.getElementById('savebtn').textContent='✏ 修正を保存';
+  document.getElementById('savebtn').style.display='none';
+  document.getElementById('edit-savebtn').style.display='block';
 }
 
 function cancelEdit(){
@@ -458,10 +464,13 @@ function cancelEdit(){
   document.getElementById('panel').style.borderTop='';
   document.getElementById('panel').style.background='#fff';
   document.getElementById('panel').classList.remove('edit-mode');
+  document.getElementById('savebtn').style.display='block';
+  document.getElementById('edit-savebtn').style.display='none';
   document.getElementById('edit-banner').style.display='none';
   document.getElementById('cancel-edit-btn').style.display='none';
   document.getElementById('panel').classList.remove('edit-mode');
-  document.getElementById('savebtn').textContent='記録する';
+  document.getElementById('savebtn').style.display='block';
+  document.getElementById('edit-savebtn').style.display='none';
   document.querySelectorAll('.sbtn').forEach(b=>b.classList.remove('sel'));
   selStatus=null;
   document.getElementById('memo').value='';
@@ -475,25 +484,6 @@ function closePanel(){
 }
 
 document.getElementById('savebtn').onclick=async()=>{
-  if(editMode){
-    // Edit mode: post with correction flag
-    if(!selField||!selStatus){alert('水の状態を選択してください');return;}
-    const nm=selField.properties.name.trim();
-    const memo=document.getElementById('memo').value;
-    const recDate=new Date();
-    recDate.setDate(recDate.getDate()-parseInt(document.getElementById('sel-date').value));
-    recDate.setHours(parseInt(document.getElementById('sel-hour').value),0,0,0);
-    const recTime=recDate.toISOString();
-    records[nm]={status:selStatus,checkedOnly:false,person:curUser,memo,time:recTime};
-    cancelEdit(); closePanel(); renderMap();
-    try{
-      await fetch(GAS,{method:'POST',body:JSON.stringify({
-        name:nm,status:selStatus,person:curUser,memo,time:recTime,
-        correction:true,originalTime:editOrigTime
-      })});
-    }catch(e){alert('保存に失敗しました');}
-    return;
-  }
   if(!selField||!selStatus){alert('水の状態を選択してください');return;}
   if(!curUser){
     const n=prompt('担当者名を入力してください（例：水谷）');
@@ -513,6 +503,24 @@ document.getElementById('savebtn').onclick=async()=>{
   closePanel(); renderMap();
   try{
     await fetch(GAS,{method:'POST',body:JSON.stringify({name:nm,status:newS,person:curUser,memo,time:recTime})});
+  }catch(e){alert('保存に失敗しました');}
+};
+
+document.getElementById('edit-savebtn').onclick=async()=>{
+  if(!selField||!selStatus){alert('水の状態を選択してください');return;}
+  const nm=selField.properties.name.trim();
+  const memo=document.getElementById('memo').value;
+  const recDate=new Date();
+  recDate.setDate(recDate.getDate()-parseInt(document.getElementById('sel-date').value));
+  recDate.setHours(parseInt(document.getElementById('sel-hour').value),0,0,0);
+  const recTime=recDate.toISOString();
+  records[nm]={status:selStatus,checkedOnly:false,person:curUser,memo,time:recTime};
+  cancelEdit(); closePanel(); renderMap();
+  try{
+    await fetch(GAS,{method:'POST',body:JSON.stringify({
+      name:nm,status:selStatus,person:curUser,memo,time:recTime,
+      correction:true,originalTime:editOrigTime
+    })});
   }catch(e){alert('保存に失敗しました');}
 };
 
