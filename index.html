@@ -447,9 +447,14 @@ function startEdit(origTime, origStatus, origMemo){
   document.getElementById('panel').style.background='#fff8f8';
   document.getElementById('edit-banner').style.display='block';
   document.getElementById('cancel-edit-btn').style.display='block';
-  document.getElementById('savebtn').textContent='✏ 修正を保存';
-  document.getElementById('savebtn').style.background='#c0392b';
   document.getElementById('panel').scrollTop=0;
+  // Button update in next tick to avoid override
+  setTimeout(()=>{
+    const btn=document.getElementById('savebtn');
+    btn.textContent='✏ 修正を保存';
+    btn.style.setProperty('background','#c0392b','important');
+    btn.style.setProperty('color','#fff','important');
+  },100);
 }
 
 function cancelEdit(){
@@ -458,8 +463,9 @@ function cancelEdit(){
   document.getElementById('panel').style.background='#fff';
   document.getElementById('edit-banner').style.display='none';
   document.getElementById('cancel-edit-btn').style.display='none';
-  document.getElementById('savebtn').textContent='記録する';
-  document.getElementById('savebtn').style.background='#2C4A1E';
+  const sbtn=document.getElementById('savebtn');
+  sbtn.textContent='記録する';
+  sbtn.style.setProperty('background','#2C4A1E','important');
   document.querySelectorAll('.sbtn').forEach(b=>b.classList.remove('sel'));
   selStatus=null;
   document.getElementById('memo').value='';
