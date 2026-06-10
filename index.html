@@ -126,6 +126,12 @@ body { font-family:'Helvetica Neue',Arial,sans-serif; }
 .hrow { font-size:11px; color:#666; padding:4px 0; border-bottom:1px solid #f5f5f5; }
 .hrow b { color:#333; }
 #overlay { position:fixed; inset:0; background:rgba(0,0,0,0.3); z-index:1000; display:none; }
+#time-row { display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:12px; color:#666; }
+#time-row label { flex-shrink:0; }
+.tsel {
+  flex:1; padding:7px 8px; border:1.5px solid #e0e0e0; border-radius:8px;
+  font-size:13px; background:#fff; cursor:pointer; color:#333;
+}
 #overlay.on { display:block; }
 </style>
 </head>
@@ -163,7 +169,16 @@ body { font-family:'Helvetica Neue',Arial,sans-serif; }
   <div id="pl"></div>
   <div id="htimer"></div>
   <div class="sgrid" id="sgrid"></div>
-  <textarea id="memo" rows="2" placeholder="メモ（任意）"></textarea>
+  <div id="time-row">
+  <label>記録日時</label>
+  <select class="tsel" id="sel-date">
+    <option value="0">今日</option>
+    <option value="1">昨日</option>
+    <option value="2">一昨日</option>
+  </select>
+  <select class="tsel" id="sel-hour"></select>
+</div>
+<textarea id="memo" rows="2" placeholder="メモ（任意）"></textarea>
   <button id="savebtn">記録する</button>
   <button id="closebtn" onclick="closePanel()">閉じる</button>
   <div id="hist-section">
@@ -373,6 +388,18 @@ function openPanel(feat){
     }).join('');
   } else hs.style.display='none';
   document.getElementById('memo').value='';
+  // Init time selector
+  const now = new Date();
+  document.getElementById('sel-date').value = '0';
+  const hourSel = document.getElementById('sel-hour');
+  hourSel.innerHTML = '';
+  for(let h=0; h<24; h++){
+    const opt = document.createElement('option');
+    opt.value = h;
+    opt.textContent = h + '時';
+    if(h === now.getHours()) opt.selected = true;
+    hourSel.appendChild(opt);
+  }
   document.getElementById('panel').classList.add('open');
   document.getElementById('overlay').classList.add('on');
 }
@@ -399,10 +426,15 @@ document.getElementById('savebtn').onclick=async()=>{
   const memo=document.getElementById('memo').value;
   const prev=records[nm];
   const newS=selStatus==='確認のみ'&&prev&&prev.status!=='確認のみ'?prev.status:selStatus;
-  records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo,time:new Date().toISOString()};
+  // Build record time from selectors
+  const recDate = new Date();
+  recDate.setDate(recDate.getDate() - parseInt(document.getElementById('sel-date').value));
+  recDate.setHours(parseInt(document.getElementById('sel-hour').value), 0, 0, 0);
+  const recTime = recDate.toISOString();
+  records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo,time:recTime};
   closePanel(); renderMap();
   try{
-    await fetch(GAS,{method:'POST',body:JSON.stringify({name:nm,status:newS,person:curUser,memo})});
+    await fetch(GAS,{method:'POST',body:JSON.stringify({name:nm,status:newS,person:curUser,memo,time:recTime})});
   }catch(e){alert('保存に失敗しました');}
 };
 
