@@ -126,6 +126,20 @@ body { font-family:'Helvetica Neue',Arial,sans-serif; }
 .hrow { font-size:11px; color:#666; padding:4px 0; border-bottom:1px solid #f5f5f5; }
 .hrow b { color:#333; }
 #overlay { position:fixed; inset:0; background:rgba(0,0,0,0.3); z-index:1000; display:none; }
+#edit-banner {
+  display:none; background:#fff3cd; border:1.5px solid #f39c12;
+  border-radius:8px; padding:7px 12px; margin-bottom:10px;
+  font-size:12px; color:#856404; text-align:center; font-weight:600;
+}
+.edit-btn {
+  font-size:11px; color:#3498db; background:none; border:1px solid #3498db;
+  border-radius:6px; padding:3px 8px; cursor:pointer; margin-left:6px;
+}
+#cancel-edit-btn {
+  width:100%; padding:9px; background:#fff3cd; border:1.5px solid #f39c12;
+  border-radius:10px; font-size:13px; cursor:pointer; color:#856404;
+  margin-bottom:6px; display:none;
+}
 #time-row { display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:12px; color:#666; }
 #time-row label { flex-shrink:0; }
 .tsel {
@@ -198,7 +212,7 @@ const LEGS = {
   status:[{c:'#3498db',l:'入水'},{c:'#5dade2',l:'ちょい入れ'},{c:'#e67e22',l:'止水'},{c:'#e74c3c',l:'中干し'},{c:'#8e44ad',l:'水尻外し'},{c:'#27ae60',l:'除草剤投入'},{c:'#95a5a6',l:'未記録'}]
 };
 
-let records={}, allHist=[], mode='date', selBlocks=new Set();
+let records={}, allHist=[], mode='date', selBlocks=new Set(), editMode=false, editOrigTime=null;
 let curUser=localStorage.getItem('osf_user')||'';
 let selField=null, selStatus=null, histOpen=false, layers={};
 
@@ -382,9 +396,10 @@ function openPanel(feat){
     hs.style.display='block';
     document.getElementById('hist-toggle').textContent=`▶ 過去の記録（${fh.length}件）`;
     document.getElementById('hist-list').style.display='none';
-    document.getElementById('hist-list').innerHTML=fh.map(h=>{
+    document.getElementById('hist-list').innerHTML=fh.map((h,i)=>{
       const d=new Date(h[4]);
-      return `<div class="hrow">${d.toLocaleDateString('ja')} ${d.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'})} <b>${h[1]}</b> ${h[2]} ${h[3]?'— '+h[3]:''}</div>`;
+      const editBtn=i===0?`<button class="edit-btn" onclick="startEdit('${h[4]}')">修正</button>`:'';
+      return `<div class="hrow">${d.toLocaleDateString('ja')} ${d.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'})} <b>${h[1]}</b> ${h[2]} ${h[3]?'— '+h[3]:''}${editBtn}</div>`;
     }).join('');
   } else hs.style.display='none';
   document.getElementById('memo').value='';
@@ -409,13 +424,75 @@ function toggleHist(){
   document.getElementById('hist-list').style.display=histOpen?'block':'none';
   document.getElementById('hist-toggle').textContent=(histOpen?'▼':'▶')+document.getElementById('hist-toggle').textContent.slice(1);
 }
+function startEdit(origTime){
+  editMode=true;
+  editOrigTime=origTime;
+  // Pre-fill current values
+  const nm=selField.properties.name.trim();
+  const fh=allHist.filter(h=>h[0]===nm);
+  const latest=fh[fh.length-1];
+  if(latest){
+    // Select current status
+    document.querySelectorAll('.sbtn').forEach(b=>{
+      if(b.textContent===latest[1]){b.classList.add('sel');selStatus=latest[1];}
+    });
+    // Set memo
+    document.getElementById('memo').value=latest[3]||'';
+    // Set time
+    const d=new Date(latest[4]);
+    const now=new Date();
+    const dayDiff=Math.round((now.setHours(0,0,0,0)-d.setHours(0,0,0,0))/86400000);
+    const origD=new Date(origTime);
+    document.getElementById('sel-date').value=Math.min(dayDiff,2).toString();
+    document.getElementById('sel-hour').value=origD.getHours().toString();
+  }
+  // Show edit UI
+  document.getElementById('edit-banner').style.display='block';
+  document.getElementById('cancel-edit-btn').style.display='block';
+  document.getElementById('savebtn').textContent='修正を保存';
+  document.getElementById('savebtn').style.background='#c0392b';
+  // Scroll to top of panel
+  document.getElementById('panel').scrollTop=0;
+}
+
+function cancelEdit(){
+  editMode=false; editOrigTime=null;
+  document.getElementById('edit-banner').style.display='none';
+  document.getElementById('cancel-edit-btn').style.display='none';
+  document.getElementById('savebtn').textContent='記録する';
+  document.getElementById('savebtn').style.background='#2C4A1E';
+  document.querySelectorAll('.sbtn').forEach(b=>b.classList.remove('sel'));
+  selStatus=null;
+  document.getElementById('memo').value='';
+}
+
 function closePanel(){
   document.getElementById('panel').classList.remove('open');
   document.getElementById('overlay').classList.remove('on');
   selField=null;
+  if(editMode) cancelEdit();
 }
 
 document.getElementById('savebtn').onclick=async()=>{
+  if(editMode){
+    // Edit mode: post with correction flag
+    if(!selField||!selStatus){alert('水の状態を選択してください');return;}
+    const nm=selField.properties.name.trim();
+    const memo=document.getElementById('memo').value;
+    const recDate=new Date();
+    recDate.setDate(recDate.getDate()-parseInt(document.getElementById('sel-date').value));
+    recDate.setHours(parseInt(document.getElementById('sel-hour').value),0,0,0);
+    const recTime=recDate.toISOString();
+    records[nm]={status:selStatus,checkedOnly:false,person:curUser,memo,time:recTime};
+    cancelEdit(); closePanel(); renderMap();
+    try{
+      await fetch(GAS,{method:'POST',body:JSON.stringify({
+        name:nm,status:selStatus,person:curUser,memo,time:recTime,
+        correction:true,originalTime:editOrigTime
+      })});
+    }catch(e){alert('保存に失敗しました');}
+    return;
+  }
   if(!selField||!selStatus){alert('水の状態を選択してください');return;}
   if(!curUser){
     const n=prompt('担当者名を入力してください（例：水谷）');
