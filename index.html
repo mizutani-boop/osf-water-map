@@ -237,6 +237,14 @@ function toggleBlock(c){
   const btn=document.getElementById('filter-toggle-btn');
   btn.textContent=selBlocks.size===0?'🗂 ブロック ▾':[...selBlocks].map(x=>BM[x]).join('・')+' ▾';
   renderMap();
+  // Fit map to selected blocks
+  if(selBlocks.size>0){
+    const feats=GJ.features.filter(f=>selBlocks.has((f.properties.field_id||'').replace(/-.*/, '')));
+    if(feats.length>0){
+      const g=L.geoJSON({type:'FeatureCollection',features:feats});
+      map.fitBounds(g.getBounds().pad(0.1));
+    }
+  }
 }
 function resetFilter(){
   selBlocks.clear();
