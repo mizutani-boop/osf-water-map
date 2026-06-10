@@ -396,9 +396,14 @@ function openPanel(feat){
     hs.style.display='block';
     document.getElementById('hist-toggle').textContent=`▶ 過去の記録（${fh.length}件）`;
     document.getElementById('hist-list').style.display='none';
+    // Add edit button event after DOM update
+    setTimeout(()=>{
+      const eb=document.getElementById('edit-latest-btn');
+      if(eb) eb.addEventListener('click',()=>startEdit(eb.dataset.time, eb.dataset.status, eb.dataset.memo));
+    },50);
     document.getElementById('hist-list').innerHTML=fh.map((h,i)=>{
       const d=new Date(h[4]);
-      const editBtn=i===0?`<button class="edit-btn" onclick="startEdit('${h[4]}')">修正</button>`:'';
+      const editBtn=i===0?`<button class="edit-btn" data-time="${h[4]}" data-status="${h[1]}" data-memo="${(h[3]||'').replace(/"/g,'&quot;')}" id="edit-latest-btn">✏ 修正</button>`:'';
       return `<div class="hrow">${d.toLocaleDateString('ja')} ${d.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'})} <b>${h[1]}</b> ${h[2]} ${h[3]?'— '+h[3]:''}${editBtn}</div>`;
     }).join('');
   } else hs.style.display='none';
@@ -424,39 +429,33 @@ function toggleHist(){
   document.getElementById('hist-list').style.display=histOpen?'block':'none';
   document.getElementById('hist-toggle').textContent=(histOpen?'▼':'▶')+document.getElementById('hist-toggle').textContent.slice(1);
 }
-function startEdit(origTime){
+function startEdit(origTime, origStatus, origMemo){
   editMode=true;
   editOrigTime=origTime;
   // Pre-fill current values
-  const nm=selField.properties.name.trim();
-  const fh=allHist.filter(h=>h[0]===nm);
-  const latest=fh[fh.length-1];
-  if(latest){
-    // Select current status
-    document.querySelectorAll('.sbtn').forEach(b=>{
-      if(b.textContent===latest[1]){b.classList.add('sel');selStatus=latest[1];}
-    });
-    // Set memo
-    document.getElementById('memo').value=latest[3]||'';
-    // Set time
-    const d=new Date(latest[4]);
-    const now=new Date();
-    const dayDiff=Math.round((now.setHours(0,0,0,0)-d.setHours(0,0,0,0))/86400000);
-    const origD=new Date(origTime);
-    document.getElementById('sel-date').value=Math.min(dayDiff,2).toString();
-    document.getElementById('sel-hour').value=origD.getHours().toString();
-  }
-  // Show edit UI
+  document.querySelectorAll('.sbtn').forEach(b=>{
+    if(b.textContent===origStatus){b.classList.add('sel');selStatus=origStatus;}
+  });
+  document.getElementById('memo').value=origMemo||'';
+  const origD=new Date(origTime);
+  const now=new Date();
+  const dayDiff=Math.floor((new Date(now.getFullYear(),now.getMonth(),now.getDate())-new Date(origD.getFullYear(),origD.getMonth(),origD.getDate()))/86400000);
+  document.getElementById('sel-date').value=Math.min(Math.max(dayDiff,0),2).toString();
+  document.getElementById('sel-hour').value=origD.getHours().toString();
+  // Visual: make panel clearly in edit mode
+  document.getElementById('panel').style.borderTop='4px solid #c0392b';
+  document.getElementById('panel').style.background='#fff8f8';
   document.getElementById('edit-banner').style.display='block';
   document.getElementById('cancel-edit-btn').style.display='block';
-  document.getElementById('savebtn').textContent='修正を保存';
+  document.getElementById('savebtn').textContent='✏ 修正を保存';
   document.getElementById('savebtn').style.background='#c0392b';
-  // Scroll to top of panel
   document.getElementById('panel').scrollTop=0;
 }
 
 function cancelEdit(){
   editMode=false; editOrigTime=null;
+  document.getElementById('panel').style.borderTop='';
+  document.getElementById('panel').style.background='#fff';
   document.getElementById('edit-banner').style.display='none';
   document.getElementById('cancel-edit-btn').style.display='none';
   document.getElementById('savebtn').textContent='記録する';
