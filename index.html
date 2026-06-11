@@ -28,6 +28,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 
 /* BLOCK FILTER */
 #filter-wrap{position:fixed;top:78px;right:10px;z-index:998;}
+#multi-btn{position:fixed;top:118px;right:10px;z-index:997;}
 #filter-toggle-btn{padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #2C4A1E;border-radius:14px;font-size:12px;font-weight:600;color:#2C4A1E;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;}
 #filter-menu{display:none;position:absolute;right:0;top:36px;background:#fff;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.18);min-width:170px;overflow:hidden;}
 #filter-menu.open{display:block;}
@@ -75,7 +76,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 #overlay{position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:1000;display:none;}
 
 /* Multi-select */
-#multi-btn{padding:5px 11px;border:1.5px solid rgba(255,255,255,0.35);border-radius:14px;background:transparent;color:rgba(255,255,255,0.65);font-size:11px;font-weight:600;cursor:pointer;}
+#multi-btn{padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #888;border-radius:14px;font-size:12px;font-weight:600;color:#555;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;margin-top:0;}
 #multi-btn.active{background:#f39c12;color:#fff;border-color:#f39c12;}
 #multi-bar{display:none;position:fixed;bottom:0;left:0;right:0;z-index:1002;
   background:#2C4A1E;padding:12px 16px;
@@ -93,7 +94,6 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 <div id="topbar">
   <button class="mode-btn active" id="btn-date" onclick="setMode('date')">確認日</button>
   <button class="mode-btn" id="btn-status" onclick="setMode('status')">水状態</button>
-  <button id="multi-btn" onclick="toggleMultiMode()">☑ 複数選択</button>
   <div id="topbar-right">
     <button id="refresh-btn" onclick="loadRecords()">↻</button>
     <span id="last-update"></span>
@@ -108,6 +108,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
     <div id="filter-reset" onclick="resetFilter()">✕ すべて表示にリセット</div>
   </div>
 </div>
+<button id="multi-btn" onclick="toggleMultiMode()">☑ 複数選択</button>
 <div id="legend"></div>
 <div id="stats">圃場 <b id="tc">-</b> 枚<br><span id="ac" style="color:#e74c3c"></span></div>
 <div id="overlay" onclick="closePanel()"></div>
