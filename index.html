@@ -72,7 +72,11 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 #hist-toggle{font-size:12px;color:#3498db;cursor:pointer;margin-bottom:6px;}
 .hrow{display:flex;align-items:center;font-size:11px;color:#666;padding:5px 0;border-bottom:1px solid #f5f5f5;gap:6px;}
 .hrow b{color:#333;}
-.hrow-edit{font-size:11px;color:#3498db;background:none;border:1px solid #3498db;border-radius:5px;padding:2px 7px;cursor:pointer;margin-left:auto;flex-shrink:0;}
+.hrow-edit{font-size:11px;color:#3498db;background:none;border:1px solid #3498db;border-radius:5px;padding:2px 6px;cursor:pointer;flex-shrink:0;}
+.hrow-del{font-size:11px;color:#e74c3c;background:none;border:1px solid #e74c3c;border-radius:5px;padding:2px 6px;cursor:pointer;flex-shrink:0;margin-left:4px;}
+.hrow{display:flex;align-items:center;font-size:11px;color:#666;padding:5px 0;border-bottom:1px solid #f5f5f5;gap:4px;}
+.hrow b{color:#333;margin-right:2px;}
+.hrow-btns{margin-left:auto;display:flex;gap:4px;flex-shrink:0;}
 #overlay{position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:1000;display:none;}
 
 /* Multi-select */
@@ -401,18 +405,35 @@ function openPanel(feat){
     hs.style.display='block';
     document.getElementById('hist-toggle').textContent='▶ 過去の記録（'+fh.length+'件）';
     document.getElementById('hist-list').style.display='none';
+    const now=new Date();
+    const todayStr=now.toLocaleDateString('ja');
+    const yesterday=new Date(now); yesterday.setDate(yesterday.getDate()-1);
+    const yesterdayStr=yesterday.toLocaleDateString('ja');
+
     document.getElementById('hist-list').innerHTML=fh.map((h,i)=>{
       const d=new Date(h[4]);
-      const eb=i===0?'<button class="hrow-edit" data-idx="0" data-time="'+h[4]+'" data-status="'+h[1]+'" data-memo="'+(h[3]||'').replace(/"/g,'&quot;')+'">✏ 修正</button>':'';
-      return '<div class="hrow">'+d.toLocaleDateString('ja')+' '+d.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'})+' <b>'+h[1]+'</b> '+h[2]+(h[3]?' — '+h[3]:'')+eb+'</div>';
+      const dStr=d.toLocaleDateString('ja');
+      const isEditable=dStr===todayStr||dStr===yesterdayStr;
+      const editBtn=isEditable?'<button class="hrow-edit" data-time="'+h[4]+'" data-status="'+h[1]+'" data-memo="'+(h[3]||'').replace(/"/g,'&quot;')+'">✏</button>':'';
+      const delBtn=isEditable?'<button class="hrow-del" data-time="'+h[4]+'" data-status="'+h[1]+'">🗑</button>':'';
+      return '<div class="hrow">'+dStr+' '+d.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'})+' <b>'+h[1]+'</b> '+h[2]+(h[3]?' — '+h[3]:'')+editBtn+delBtn+'</div>';
     }).join('');
-    // Attach edit button event
-    const eb=document.querySelector('.hrow-edit');
-    if(eb){
-      eb.addEventListener('click',function(){
+
+    // Attach edit/delete button events
+    document.querySelectorAll('.hrow-edit').forEach(btn=>{
+      btn.addEventListener('click',function(){
         enterEditMode(this.dataset.time, this.dataset.status, this.dataset.memo);
       });
-    }
+    });
+    document.querySelectorAll('.hrow-del').forEach(btn=>{
+      btn.addEventListener('click',function(){
+        const t=this.dataset.time;
+        const s=this.dataset.status;
+        if(confirm('この記録を削除しますか？\n'+new Date(t).toLocaleDateString('ja')+' '+s)){
+          deleteRecord(p.name.trim(), t);
+        }
+      });
+    });
   } else {
     hs.style.display='none';
   }
@@ -540,6 +561,27 @@ document.getElementById('cancel-edit-btn').addEventListener('click',()=>{
   document.getElementById('memo').value='';
   initTimeSelector(0, new Date().getHours());
 });
+
+async function deleteRecord(fieldName, origTime){
+  // Remove from allHist
+  allHist=allHist.filter(h=>!(h[0]===fieldName && new Date(h[4]).toISOString()===new Date(origTime).toISOString()));
+  // Update records to previous entry if exists
+  const remaining=allHist.filter(h=>h[0]===fieldName);
+  if(remaining.length>0){
+    const latest=remaining[remaining.length-1];
+    records[fieldName]={status:latest[1],person:latest[2],memo:latest[3],time:latest[4]};
+  } else {
+    delete records[fieldName];
+  }
+  closePanel();
+  renderMap();
+  // Send delete request to GAS
+  try{
+    await fetch(GAS,{method:'POST',body:JSON.stringify({
+      action:'delete', name:fieldName, time:origTime, person:curUser
+    })});
+  }catch(e){alert('削除の保存に失敗しました');}
+}
 
 async function loadRecords(){
   try{
