@@ -248,6 +248,7 @@ function openMultiPanel(){
   document.getElementById('hist-section').style.display='none';
   document.getElementById('panel').classList.add('open');
   document.getElementById('overlay').classList.add('on');
+  document.getElementById('multi-bar').style.display='none';
 }
 
 // Herbicide
@@ -450,6 +451,7 @@ function closePanel(){
   document.getElementById('overlay').classList.remove('on');
   exitEditMode();selField=null;
   document.getElementById('multi-banner').style.display='none';
+  if(multiSelected.size>0){document.getElementById('multi-bar').style.display='flex';}
 }
 
 async function deleteRecord(fieldName,origTime){
