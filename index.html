@@ -488,7 +488,7 @@ function getSelectedTime(){
 
 document.getElementById('savebtn').addEventListener('click',async()=>{
   // Multi-select save
-  if(multiSelected.size>0 && document.getElementById('multi-banner').style.display==='block'){
+  if(multiSelected.size>0 && selField===null){
     if(!selStatus){alert('水の状態を選択してください');return;}
     if(!curUser){
       const n=prompt('担当者名を入力してください（例：水谷）');
@@ -498,17 +498,20 @@ document.getElementById('savebtn').addEventListener('click',async()=>{
     const memo=document.getElementById('memo').value;
     const time=getSelectedTime();
     const targets=[...multiSelected];
-    for(const nm of targets){
+    // Update local records immediately
+    targets.forEach(nm=>{
       const prev=records[nm];
-      const newS=selStatus==='確認のみ'&&prev&&prev.status!=='確認のみ'?prev.status:selStatus;
+      const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;
       records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo,time};
-      try{
-        await fetch(GAS,{method:'POST',body:JSON.stringify({name:nm,status:newS,person:curUser,memo,time})});
-      }catch(e){}
-    }
+    });
     closePanel();
     clearMultiSelect();
     renderMap();
+    // Send to GAS in background (fire and forget per record)
+    targets.forEach(nm=>{
+      const s=records[nm].status;
+      fetch(GAS,{method:'POST',body:JSON.stringify({name:nm,status:s,person:curUser,memo,time})}).catch(()=>{});
+    });
     return;
   }
   if(!selField||!selStatus){alert('水の状態を選択してください');return;}
