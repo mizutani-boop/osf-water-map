@@ -73,6 +73,18 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 .hrow b{color:#333;}
 .hrow-edit{font-size:11px;color:#3498db;background:none;border:1px solid #3498db;border-radius:5px;padding:2px 7px;cursor:pointer;margin-left:auto;flex-shrink:0;}
 #overlay{position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:1000;display:none;}
+
+/* Multi-select */
+#multi-btn{padding:5px 11px;border:1.5px solid rgba(255,255,255,0.35);border-radius:14px;background:transparent;color:rgba(255,255,255,0.65);font-size:11px;font-weight:600;cursor:pointer;}
+#multi-btn.active{background:#f39c12;color:#fff;border-color:#f39c12;}
+#multi-bar{display:none;position:fixed;bottom:0;left:0;right:0;z-index:1002;
+  background:#2C4A1E;padding:12px 16px;
+  flex-direction:row;align-items:center;justify-content:space-between;}
+#multi-bar.show{display:flex;}
+#multi-count{color:#fff;font-size:14px;font-weight:700;}
+#multi-record-btn{padding:10px 20px;background:#f39c12;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;}
+#multi-clear-btn{padding:10px 14px;background:rgba(255,255,255,0.2);color:#fff;border:none;border-radius:10px;font-size:13px;cursor:pointer;}
+#multi-banner{display:none;background:#fff3cd;border:1.5px solid #f39c12;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:13px;font-weight:700;color:#856404;text-align:center;}
 #overlay.on{display:block;}
 </style>
 </head>
@@ -81,6 +93,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 <div id="topbar">
   <button class="mode-btn active" id="btn-date" onclick="setMode('date')">確認日</button>
   <button class="mode-btn" id="btn-status" onclick="setMode('status')">水状態</button>
+  <button id="multi-btn" onclick="toggleMultiMode()">☑ 複数選択</button>
   <div id="topbar-right">
     <button id="refresh-btn" onclick="loadRecords()">↻</button>
     <span id="last-update"></span>
@@ -98,9 +111,15 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 <div id="legend"></div>
 <div id="stats">圃場 <b id="tc">-</b> 枚<br><span id="ac" style="color:#e74c3c"></span></div>
 <div id="overlay" onclick="closePanel()"></div>
+<div id="multi-bar">
+  <button id="multi-clear-btn" onclick="clearMultiSelect()">✕ 解除</button>
+  <span id="multi-count">0枚選択中</span>
+  <button id="multi-record-btn" onclick="openMultiPanel()">一括記録</button>
+</div>
 <div id="panel">
   <div id="ph"></div>
   <div id="edit-banner">✏ 修正モード</div>
+  <div id="multi-banner">☑ 複数選択 — 一括記録モード</div>
   <div id="pt">-</div>
   <div id="pm">-</div>
   <div id="pl"></div>
@@ -137,7 +156,7 @@ const LEGS={
   status:[{c:'#3498db',l:'入水'},{c:'#5dade2',l:'ちょい入れ'},{c:'#e67e22',l:'止水'},{c:'#e74c3c',l:'中干し'},{c:'#8e44ad',l:'水尻外し'},{c:'#27ae60',l:'除草剤投入'},{c:'#95a5a6',l:'未記録'}]
 };
 
-let records={},allHist=[],mode='date',selBlocks=new Set();
+let records={},allHist=[],mode='date',selBlocks=new Set(),multiMode=false,multiSelected=new Set();
 let curUser=localStorage.getItem('osf_user')||'';
 let selField=null,selStatus=null,histOpen=false,editMode=false,editOrigTime=null;
 let layers={};
@@ -212,6 +231,67 @@ function fieldOpacity(feat){
   return selBlocks.has(c)?0.85:0.18;
 }
 
+function toggleMultiMode(){
+  multiMode=!multiMode;
+  document.getElementById('multi-btn').classList.toggle('active',multiMode);
+  if(!multiMode){clearMultiSelect();}
+}
+
+function clearMultiSelect(){
+  multiSelected.clear();
+  multiMode=false;
+  document.getElementById('multi-btn').classList.remove('active');
+  document.getElementById('multi-bar').classList.remove('show');
+  renderMap();
+}
+
+function toggleFieldSelect(name){
+  if(multiSelected.has(name)){multiSelected.delete(name);}
+  else{multiSelected.add(name);}
+  const count=multiSelected.size;
+  document.getElementById('multi-count').textContent=count+'枚選択中';
+  if(count>0){document.getElementById('multi-bar').classList.add('show');}
+  else{document.getElementById('multi-bar').classList.remove('show');}
+  // Update layer style
+  const layer=layers[name];
+  if(layer){
+    layer.setStyle(multiSelected.has(name)
+      ?{color:'#f39c12',weight:3,fillColor:fieldColor(name),fillOpacity:0.85}
+      :{color:'#fff',weight:0.8,fillColor:fieldColor(name),fillOpacity:fieldOpacity({properties:{field_id:(records[name]||{}).field_id}})});
+  }
+}
+
+function openMultiPanel(){
+  if(multiSelected.size===0)return;
+  selField=null; selStatus=null;
+  // Show panel in multi mode
+  document.getElementById('pt').textContent='複数圃場の一括記録';
+  document.getElementById('pm').textContent=[...multiSelected].slice(0,3).join('、')+(multiSelected.size>3?'　他'+(multiSelected.size-3)+'枚':'');
+  document.getElementById('pl').textContent='';
+  document.getElementById('pl').style.cssText='';
+  document.getElementById('htimer').style.display='none';
+  document.getElementById('edit-banner').style.display='none';
+  document.getElementById('multi-banner').style.display='block';
+  document.getElementById('multi-banner').textContent='☑ '+multiSelected.size+'枚に一括記録します';
+  document.getElementById('savebtn').style.display='block';
+  document.getElementById('edit-savebtn').style.display='none';
+  document.getElementById('cancel-edit-btn').style.display='none';
+  // Status buttons
+  const sg=document.getElementById('sgrid');sg.innerHTML='';
+  S_OPTS.forEach(s=>{
+    const b=document.createElement('button');
+    b.className='sbtn s'+s;b.textContent=s;
+    b.addEventListener('click',()=>{document.querySelectorAll('.sbtn').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');selStatus=s;});
+    sg.appendChild(b);
+  });
+  initTimeSelector(0, new Date().getHours());
+  document.getElementById('memo').value='';
+  // History section hidden in multi mode
+  document.getElementById('hist-section').style.display='none';
+  document.getElementById('panel').classList.add('open');
+  document.getElementById('overlay').classList.add('on');
+}
+
 function renderMap(){
   Object.values(layers).forEach(l=>map.removeLayer(l));layers={};
   let a4=0;
@@ -219,8 +299,17 @@ function renderMap(){
     const nm=feat.properties.name;
     const col=fieldColor(nm);
     if(col==='#e74c3c')a4++;
-    const layer=L.geoJSON(feat,{style:{color:'#fff',weight:0.8,fillColor:col,fillOpacity:fieldOpacity(feat)}})
-      .on('click',()=>openPanel(feat)).addTo(map);
+    const isSelected=multiSelected.has(nm);
+    const layer=L.geoJSON(feat,{style:{
+      color:isSelected?'#f39c12':'#fff',
+      weight:isSelected?3:0.8,
+      fillColor:col,
+      fillOpacity:fieldOpacity(feat)
+    }})
+      .on('click',()=>{
+      if(multiMode){toggleFieldSelect(nm);}
+      else{openPanel(feat);}
+    }).addTo(map);
     layers[nm]=layer;
   });
   document.getElementById('tc').textContent=GJ.features.length;
@@ -369,6 +458,7 @@ function closePanel(){
   document.getElementById('panel').classList.remove('open');
   document.getElementById('overlay').classList.remove('on');
   exitEditMode();selField=null;
+  document.getElementById('multi-banner').style.display='none';
 }
 
 async function saveRecord(nm, status, memo, time, isCorrection){
@@ -396,6 +486,30 @@ function getSelectedTime(){
 }
 
 document.getElementById('savebtn').addEventListener('click',async()=>{
+  // Multi-select save
+  if(multiSelected.size>0 && document.getElementById('multi-banner').style.display==='block'){
+    if(!selStatus){alert('水の状態を選択してください');return;}
+    if(!curUser){
+      const n=prompt('担当者名を入力してください（例：水谷）');
+      if(!n)return; curUser=n;localStorage.setItem('osf_user',n);
+      document.getElementById('ulabel').textContent=n;
+    }
+    const memo=document.getElementById('memo').value;
+    const time=getSelectedTime();
+    const targets=[...multiSelected];
+    for(const nm of targets){
+      const prev=records[nm];
+      const newS=selStatus==='確認のみ'&&prev&&prev.status!=='確認のみ'?prev.status:selStatus;
+      records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo,time};
+      try{
+        await fetch(GAS,{method:'POST',body:JSON.stringify({name:nm,status:newS,person:curUser,memo,time})});
+      }catch(e){}
+    }
+    closePanel();
+    clearMultiSelect();
+    renderMap();
+    return;
+  }
   if(!selField||!selStatus){alert('水の状態を選択してください');return;}
   const nm=selField.properties.name.trim();
   const memo=document.getElementById('memo').value;
