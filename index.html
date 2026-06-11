@@ -214,6 +214,7 @@ function clearMultiSelect(){
   multiMode=false;
   document.getElementById('multi-btn').classList.remove('active');
   document.getElementById('multi-bar').classList.remove('show');
+  document.getElementById('multi-bar').style.display='';
   renderMap();
 }
 function toggleFieldSelect(nm){
@@ -498,7 +499,7 @@ document.getElementById('savebtn').addEventListener('click',async()=>{
       await postToGAS({action:'bulk',records:targets.map(nm=>({name:nm,status:records[nm].status,person:curUser,memo,time}))});
     }catch(e){alert('保存に失敗しました');}
     setButtonLoading('savebtn',false);
-    closePanel();clearMultiSelect();renderMap();
+    clearMultiSelect();closePanel();renderMap();
     return;
   }
   // Normal save
