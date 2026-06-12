@@ -93,7 +93,7 @@ function initFilters(){
   // 「その他」に入る品種は個別に表示（正規化後の名前で）
   const otherCrops=[...new Set(GJ.features.map(f=>normalizeCropName((f.properties.crop||'').trim())).filter(c=>c&&getCropGroup(c).key==='その他'))].sort();
   otherCrops.forEach(cropName=>{
-    const cnt=GJ.features.filter(f=>(f.properties.crop||'').trim()===cropName).length;
+    const cnt=GJ.features.filter(f=>normalizeCropName((f.properties.crop||'').trim())===cropName).length;
     const safeId='cgfc-other-'+cropName.replace(/\s+/g,'_').replace(/[^\w\u3040-\u9fff]/g,'X');
     const d=document.createElement('div');d.className='fopt';
     d.innerHTML='<div class="fchk" id="'+safeId+'"></div>'
@@ -701,7 +701,10 @@ document.addEventListener('DOMContentLoaded',()=>{
     const q=searchInput.value.trim();
     if(!q){searchResults.classList.remove('open');searchResults.innerHTML='';return;}
     const hits=GJ?GJ.features.filter(f=>(f.properties.name||'').includes(q)).slice(0,10):[];
-    if(hits.length===0){searchResults.classList.remove('open');searchResults.innerHTML='';return;}
+    if(hits.length===0){
+      searchResults.innerHTML='<div class="sres-item" style="color:#aaa;cursor:default;text-align:center;">✕ 一致する圃場がありません</div>';
+      searchResults.classList.add('open');return;
+    }
     searchResults.innerHTML=hits.map(f=>{
       const p=f.properties;
       const bn=BM[(p.field_id||'').replace(/-.*/, '')]||'';
@@ -713,13 +716,19 @@ document.addEventListener('DOMContentLoaded',()=>{
     searchResults.classList.add('open');
   });
   searchResults.addEventListener('click',e=>{
-    const item=e.target.closest('.sres-item');if(!item)return;
+    const item=e.target.closest('.sres-item');if(!item||!item.dataset.name)return;
     const name=item.dataset.name;
     const feat=GJ.features.find(f=>f.properties.name.trim()===name);
     if(!feat)return;
+    searchInput.value='';searchResults.classList.remove('open');searchResults.innerHTML='';
+    if(multiMode){
+      // 複数選択モード中は選択に追加するだけ
+      const layer=layers[name];
+      if(layer)map.fitBounds(layer.getBounds().pad(0.3));
+      toggleFieldSelect(name);return;
+    }
     const layer=layers[name];
     if(layer)map.fitBounds(layer.getBounds().pad(0.3));
-    searchInput.value='';searchResults.classList.remove('open');searchResults.innerHTML='';
     openPanel(feat);
   });
   document.addEventListener('click',e=>{
