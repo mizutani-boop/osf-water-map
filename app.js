@@ -777,8 +777,10 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!selField||!selStatus){alert('水の状態を選択してください');return;}
     setButtonLoading('edit-savebtn',true,'✏ 修正を保存');
     const nm=selField.properties.name.trim();const time=getSelectedTime();
-    records[nm]={status:selStatus,checkedOnly:false,person:curUser,memo:'',time};
-    try{await postToGAS({name:nm,status:selStatus,person:curUser,memo:'',time,correction:true,originalTime:editOrigTime});}
+    try{
+      await postToGAS({name:nm,status:selStatus,person:curUser,memo:'',time,correction:true,originalTime:editOrigTime});
+      records[nm]={status:selStatus,checkedOnly:false,person:curUser,memo:'',time};
+    }
     catch(e){alert('保存に失敗しました');setButtonLoading('edit-savebtn',false,'✏ 修正を保存');return;}
     setButtonLoading('edit-savebtn',false,'✏ 修正を保存');closePanel();renderMap();
   });
