@@ -579,7 +579,14 @@ function openPanel(feat){
   S_OPTS.forEach(s=>{
     const b=document.createElement('button');b.className='sbtn s'+s;b.textContent=s;
     if(s==='確認のみ'&&!hasRecord){b.disabled=true;b.title='未記録の圃場には使用できません';}
-    else{b.addEventListener('click',()=>{document.querySelectorAll('.sbtn').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');selStatus=s;updateSaveBtnState();});}
+    else{b.addEventListener('click',()=>{
+      // 除草剤投入中の圃場に別の状態を選んだ場合は確認ダイアログ
+      const r=records[p.name.trim()];
+      if(s!=='確認のみ'&&herbActive(r)){
+        if(!confirm('現在除草剤投入中（あと'+herbRemain(r)+'）です。\n本当に状態を上書きしますか？')){return;}
+      }
+      document.querySelectorAll('.sbtn').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');selStatus=s;updateSaveBtnState();
+    });}
     sg.appendChild(b);
   });
   initTimeSelector(0,new Date().getHours());
@@ -687,6 +694,40 @@ async function loadRecords(){
 function changeUser(){const n=prompt('担当者名を入力してください',curUser);if(n!==null){curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n||'未設定';}}
 
 document.addEventListener('DOMContentLoaded',()=>{
+  // 圃場名検索
+  const searchInput=document.getElementById('search-input');
+  const searchResults=document.getElementById('search-results');
+  searchInput.addEventListener('input',()=>{
+    const q=searchInput.value.trim();
+    if(!q){searchResults.classList.remove('open');searchResults.innerHTML='';return;}
+    const hits=GJ?GJ.features.filter(f=>(f.properties.name||'').includes(q)).slice(0,10):[];
+    if(hits.length===0){searchResults.classList.remove('open');searchResults.innerHTML='';return;}
+    searchResults.innerHTML=hits.map(f=>{
+      const p=f.properties;
+      const bn=BM[(p.field_id||'').replace(/-.*/, '')]||'';
+      return '<div class="sres-item" data-name="'+p.name.trim()+'">'
+        +'<div class="sres-name">'+p.name.trim()+'</div>'
+        +'<div class="sres-sub">'+(bn?bn+' / ':'')+( p.area_a?p.area_a+'a / ':'')+( p.crop||'')+'</div>'
+        +'</div>';
+    }).join('');
+    searchResults.classList.add('open');
+  });
+  searchResults.addEventListener('click',e=>{
+    const item=e.target.closest('.sres-item');if(!item)return;
+    const name=item.dataset.name;
+    const feat=GJ.features.find(f=>f.properties.name.trim()===name);
+    if(!feat)return;
+    const layer=layers[name];
+    if(layer)map.fitBounds(layer.getBounds().pad(0.3));
+    searchInput.value='';searchResults.classList.remove('open');searchResults.innerHTML='';
+    openPanel(feat);
+  });
+  document.addEventListener('click',e=>{
+    if(!document.getElementById('search-wrap').contains(e.target)){
+      searchResults.classList.remove('open');
+    }
+  });
+
   // メモ入力欄の変更でsavebtn状態更新
   document.getElementById('task-input').addEventListener('input',updateSaveBtnState);
 
