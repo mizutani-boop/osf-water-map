@@ -668,19 +668,15 @@ async function safeFetch(url){try{const r=await fetch(url);return await r.json()
 
 async function loadRecords(){
   const t=Date.now();
-  const[r1,r2,r3,r4,r5]=await Promise.all([
-    safeFetch(GAS+'?t='+t),
-    safeFetch(GAS+'?mode=history&t='+t),
-    safeFetch(GAS+'?mode=kusa&t='+t),
-    safeFetch(GAS+'?mode=memo&t='+t),
-    safeFetch(GAS+'?mode=memo_hist&t='+t),
-  ]);
-  if(r1&&typeof r1==='object')records=r1;
-  if(r2&&Array.isArray(r2))allHist=r2;
-  if(r3&&typeof r3==='object')kusaData=r3;
-  if(r4&&typeof r4==='object')memoData=r4;
-  if(r5&&Array.isArray(r5))memoHistAll=r5;
-  Object.keys(records).forEach(nm=>{const r=records[nm];if(r&&r.status==='除草剤投入'&&!herbActive(r))records[nm]={...r,status:'止水'};});
+  const r=await safeFetch(GAS+'?mode=all&t='+t);
+  if(r&&typeof r==='object'){
+    if(r.latest&&typeof r.latest==='object')records=r.latest;
+    if(r.history&&Array.isArray(r.history))allHist=r.history;
+    if(r.kusa&&typeof r.kusa==='object')kusaData=r.kusa;
+    if(r.memo&&typeof r.memo==='object')memoData=r.memo;
+    if(r.memoHist&&Array.isArray(r.memoHist))memoHistAll=r.memoHist;
+  }
+  Object.keys(records).forEach(nm=>{const rec=records[nm];if(rec&&rec.status==='除草剤投入'&&!herbActive(rec))records[nm]={...rec,status:'止水'};});
   renderMap();
   document.getElementById('last-update').textContent=new Date().toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'})+'更新';
 }
