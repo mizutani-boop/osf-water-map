@@ -192,7 +192,10 @@ function toggleFieldSelect(nm){
 }
 function updateConfirmOnlyBtn(){
   const btn=document.getElementById('multi-confirm-btn');
-  btn.disabled=[...multiSelected].some(nm=>!records[nm]);
+  const warn=document.getElementById('multi-warn-text');
+  const hasUnrecorded=[...multiSelected].some(nm=>!records[nm]);
+  btn.disabled=hasUnrecorded;
+  if(warn)warn.style.display=hasUnrecorded?'inline':'none';
 }
 async function bulkConfirmOnly(){
   if([...multiSelected].some(nm=>!records[nm]))return;
@@ -223,6 +226,11 @@ function openMultiPanel(){
   document.getElementById('kusa-section').style.display='none';
   document.getElementById('task-section').style.display='none';
   const bulkExtra=document.getElementById('bulk-extra');bulkExtra.innerHTML='';
+  // 一括適用の注意書き
+  const bulkNotice=document.createElement('div');
+  bulkNotice.style.cssText='font-size:11px;color:#856404;background:#fff3cd;border:1px solid #f39c12;border-radius:8px;padding:6px 10px;margin-bottom:8px;';
+  bulkNotice.textContent='※ 選択した状態・日時はすべての圃場に一括で記録されます';
+  bulkExtra.appendChild(bulkNotice);
   if(hasKusa){
     const btn=document.createElement('button');btn.className='sub-btn';
     btn.style.cssText='width:100%;padding:9px;background:#27ae60;color:#fff;border-color:#27ae60;font-weight:700;margin-bottom:6px;font-size:13px;border-radius:10px;';
@@ -589,7 +597,6 @@ function openPanel(feat){
     sg.appendChild(b);
   });
   initTimeSelector(0,new Date().getHours());
-  document.getElementById('memo').value='';
   document.getElementById('multi-banner').style.display='none';
   // 過去の記録
   const fh=allHist.filter(h=>h[0]===p.name.trim()).slice(-10).reverse();
@@ -713,9 +720,9 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(!selStatus)return;
       setButtonLoading('savebtn',true);
       if(!curUser){const n=prompt('担当者名を入力してください');if(!n){setButtonLoading('savebtn',false,'記録する');return;}curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
-      const memo=document.getElementById('memo').value;const time=getSelectedTime();const targets=[...multiSelected];
-      targets.forEach(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo,time};});
-      try{await postToGAS({action:'bulk',records:targets.map(nm=>({name:nm,status:records[nm].status,person:curUser,memo,time}))});}
+      const time=getSelectedTime();const targets=[...multiSelected];
+      targets.forEach(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo:'',time};});
+      try{await postToGAS({action:'bulk',records:targets.map(nm=>({name:nm,status:records[nm].status,person:curUser,memo:'',time}))});}
       catch(e){alert('保存に失敗しました');}
       setButtonLoading('savebtn',false,'記録する');clearMultiSelect();closePanel();renderMap();return;
     }
@@ -725,7 +732,6 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!curUser){const n=prompt('担当者名を入力してください');if(!n){setButtonLoading('savebtn',false,'記録する');return;}curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
 
     const nm=selField.properties.name.trim();
-    const waterMemo=document.getElementById('memo').value;
     const time=getSelectedTime();
 
     // ペイロード構築（ローカル更新はまだしない）
@@ -734,7 +740,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(selStatus){
       const prev=records[nm];
       waterNewS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;
-      payload.water={status:waterNewS,checkedOnly:selStatus==='確認のみ',memo:waterMemo,time};
+      payload.water={status:waterNewS,checkedOnly:selStatus==='確認のみ',memo:'',time};
     }
     if(pendingKusa)payload.kusa=pendingKusa;
     if(hasMemoToAdd)payload.memo={content:memoText};
@@ -770,9 +776,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('edit-savebtn').addEventListener('click',async()=>{
     if(!selField||!selStatus){alert('水の状態を選択してください');return;}
     setButtonLoading('edit-savebtn',true,'✏ 修正を保存');
-    const nm=selField.properties.name.trim();const memo=document.getElementById('memo').value;const time=getSelectedTime();
-    records[nm]={status:selStatus,checkedOnly:false,person:curUser,memo,time};
-    try{await postToGAS({name:nm,status:selStatus,person:curUser,memo,time,correction:true,originalTime:editOrigTime});}catch(e){alert('保存に失敗しました');}
+    const nm=selField.properties.name.trim();const time=getSelectedTime();
+    records[nm]={status:selStatus,checkedOnly:false,person:curUser,memo:'',time};
+    try{await postToGAS({name:nm,status:selStatus,person:curUser,memo:'',time,correction:true,originalTime:editOrigTime});}catch(e){alert('保存に失敗しました');}
     setButtonLoading('edit-savebtn',false,'✏ 修正を保存');closePanel();renderMap();
   });
   document.getElementById('overlay').addEventListener('click',()=>closePanel());

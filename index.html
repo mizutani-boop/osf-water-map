@@ -156,6 +156,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 <div id="multi-bar">
   <button id="multi-clear-btn" onclick="clearMultiSelect()">✕ 解除</button>
   <span id="multi-count">0枚選択中</span>
+  <span id="multi-warn-text" style="font-size:11px;color:#ffcccc;display:none;">未記録の圃場が含まれています</span>
   <button id="multi-confirm-btn" onclick="bulkConfirmOnly()">✓ 確認のみ</button>
   <button id="multi-record-btn" onclick="openMultiPanel()">一括記録</button>
 </div>
@@ -178,9 +179,9 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 
   <!-- メモセクション -->
   <div class="sub-section" id="task-section">
-    <div class="sub-section-title">⚠️ メモ</div>
+    <div class="sub-section-title">⚠️ チームへの連絡・不具合報告<span style="font-size:10px;font-weight:400;color:#aaa;margin-left:6px;">（地図にアイコンが残ります）</span></div>
     <div class="sub-row" id="task-input-row">
-      <input class="sub-input" id="task-input" type="text" placeholder="メモを入力（記録するボタンで保存）">
+      <input class="sub-input" id="task-input" type="text" placeholder="例：漏水あり、イノシシの跡あり、水口が詰まっている等">
     </div>
     <div id="task-list" style="margin-top:6px;"></div>
   </div>
@@ -197,7 +198,6 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
     </select>
     <select class="tsel" id="sel-hour"></select>
   </div>
-  <textarea id="memo" rows="2" placeholder="水管理メモ（任意）"></textarea>
   <button id="savebtn" disabled>記録する</button>
   <button id="edit-savebtn">✏ 修正を保存</button>
   <button id="cancel-edit-btn" onclick="exitEditMode()">✕ 修正をキャンセル</button>
