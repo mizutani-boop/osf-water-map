@@ -62,16 +62,34 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 #htimer{display:none;font-size:13px;font-weight:700;color:#8e44ad;background:#f5eef8;padding:8px 12px;border-radius:8px;margin-bottom:10px;text-align:center;}
 .sub-section{border:1.5px solid #e0e0e0;border-radius:10px;padding:10px 12px;margin-bottom:10px;}
 .sub-section-title{font-size:12px;font-weight:700;color:#555;margin-bottom:8px;}
+/* 草刈りアラート：強調スタイル */
+#kusa-section{border-color:#a5d6a7;}
+#kusa-section .sub-section-title{color:#2e7d32;}
 .sub-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .sub-status{font-size:12px;padding:3px 10px;border:1.5px solid #e0e0e0;border-radius:8px;background:#f9f9f9;color:#666;}
-.sub-status.kusa-need{border-color:#27ae60;background:#f0fff4;color:#27ae60;font-weight:700;}
-.sub-status.kusa-done{border-color:#95a5a6;background:#f5f5f5;color:#95a5a6;font-weight:700;}
-.sub-status.task-open{border-color:#e67e22;background:#fff8f0;color:#e67e22;font-weight:700;}
-.sub-status.task-done{border-color:#95a5a6;background:#f5f5f5;color:#95a5a6;font-weight:700;}
-.sub-btn{font-size:11px;padding:5px 10px;border:1.5px solid #2C4A1E;border-radius:8px;background:#fff;color:#2C4A1E;cursor:pointer;white-space:nowrap;}
+.sub-status.kusa-need{border-color:#27ae60;background:#e8f5e9;color:#1b5e20;font-weight:700;}
+.sub-btn{font-size:12px;padding:5px 10px;border:1.5px solid #2C4A1E;border-radius:8px;background:#fff;color:#2C4A1E;cursor:pointer;white-space:nowrap;}
 .sub-btn:active{background:#2C4A1E;color:#fff;}
 .sub-input{flex:1;min-width:120px;padding:5px 8px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:12px;}
-.sub-hist{font-size:10px;color:#aaa;margin-top:4px;}
+/* 草刈りアラートボタン */
+.kusa-alert-btn{width:100%;padding:10px 8px;background:#e8f5e9;border:2px solid #27ae60;border-radius:10px;color:#1b5e20;font-size:13px;font-weight:700;cursor:pointer;text-align:center;}
+.kusa-alert-btn:active{background:#27ae60;color:#fff;}
+.kusa-resolve-btn{width:100%;padding:9px 8px;background:#27ae60;border:2px solid #27ae60;border-radius:10px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;}
+.kusa-resolve-btn:active{background:#1b5e20;}
+.kusa-cancel-btn{width:100%;padding:7px 8px;background:#fce4ec;border:1.5px solid #e91e63;border-radius:8px;color:#880e4f;font-size:12px;cursor:pointer;}
+.kusa-active-info{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
+.kusa-meta{font-size:11px;color:#888;}
+/* pending通知 */
+.pending-notice{background:#fff3cd;border:1.5px solid #f39c12;border-radius:8px;padding:6px 10px;font-size:11px;color:#856404;margin-bottom:8px;line-height:1.5;}
+/* メモ */
+.memo-active-wrap{background:#fff8f0;border:1.5px solid #e67e22;border-radius:8px;padding:10px 12px;margin-bottom:8px;}
+.memo-content{font-size:13px;font-weight:600;color:#333;margin-bottom:4px;}
+.memo-meta{font-size:11px;color:#888;margin-bottom:8px;}
+.memo-resolve-btn{width:100%;padding:8px;background:#27ae60;border:2px solid #27ae60;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;}
+.memo-resolve-btn:active{background:#1b5e20;}
+.memo-hist-toggle{font-size:11px;color:#3498db;cursor:pointer;margin-top:6px;padding:2px 0;}
+.memo-hist-row{font-size:11px;color:#666;padding:6px 0;border-bottom:1px solid #f0f0f0;line-height:1.6;}
+.memo-hist-row:last-child{border-bottom:none;}
 .panel-divider{border:none;border-top:1px solid #eee;margin:12px 0;}
 #bulk-extra{margin-bottom:8px;}
 .sgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px;}
@@ -84,7 +102,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 .tsel{flex:1;padding:7px 8px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:13px;background:#fff;color:#333;}
 #memo{width:100%;padding:8px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:13px;resize:none;margin-bottom:10px;}
 #savebtn{width:100%;padding:13px;background:#2C4A1E;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:6px;}
-#savebtn:disabled{background:#aaa;cursor:not-allowed;}
+#savebtn:disabled{background:#ccc;cursor:not-allowed;color:#999;}
 #edit-savebtn{display:none;width:100%;padding:13px;background:#c0392b;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:6px;}
 #edit-savebtn:disabled{background:#aaa;cursor:not-allowed;}
 #cancel-edit-btn{display:none;width:100%;padding:9px;background:#fde8e8;border:1.5px solid #c0392b;border-radius:10px;font-size:13px;cursor:pointer;color:#c0392b;margin-bottom:6px;}
@@ -151,18 +169,22 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
   <div id="pm">-</div>
   <div id="pl"></div>
   <div id="htimer"></div>
+
+  <!-- 草刈りアラートセクション -->
   <div class="sub-section" id="kusa-section">
-    <div class="sub-section-title">🌿 畦草</div>
+    <div class="sub-section-title">🌿 草刈りアラート</div>
     <div id="kusa-body"></div>
   </div>
+
+  <!-- メモセクション -->
   <div class="sub-section" id="task-section">
-    <div class="sub-section-title">⚠️ タスク</div>
+    <div class="sub-section-title">⚠️ メモ</div>
     <div class="sub-row" id="task-input-row">
-      <input class="sub-input" id="task-input" type="text" placeholder="タスクを入力...">
-      <button class="sub-btn" onclick="addTask()">追加</button>
+      <input class="sub-input" id="task-input" type="text" placeholder="メモを入力（記録するボタンで保存）">
     </div>
     <div id="task-list" style="margin-top:6px;"></div>
   </div>
+
   <div id="bulk-extra"></div>
   <hr class="panel-divider">
   <div class="sgrid" id="sgrid"></div>
@@ -175,8 +197,8 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
     </select>
     <select class="tsel" id="sel-hour"></select>
   </div>
-  <textarea id="memo" rows="2" placeholder="メモ（任意）"></textarea>
-  <button id="savebtn">記録する</button>
+  <textarea id="memo" rows="2" placeholder="水管理メモ（任意）"></textarea>
+  <button id="savebtn" disabled>記録する</button>
   <button id="edit-savebtn">✏ 修正を保存</button>
   <button id="cancel-edit-btn" onclick="exitEditMode()">✕ 修正をキャンセル</button>
   <button id="closebtn" onclick="closePanel()">閉じる</button>

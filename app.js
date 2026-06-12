@@ -1,9 +1,8 @@
-// OSF Water Management App v4
+// OSF Water Management App v5
 const GAS='https://script.google.com/macros/s/AKfycbwcV7O5APU32iUPODpt6UOl_M-7_FavWZjGKaFfwaHYLLj4QU0w07UjZv7dt0s-6zqy/exec';
-const BM={"AR": "有富", "NK": "中村", "SS": "篠坂", "KM": "北村", "NI": "西今在家", "SB": "菖蒲", "FM": "古海", "MD": "本高", "BB": "馬場", "HT": "服部", "KR": "高路", "TN": "徳尾", "YG": "山が鼻", "AJ": "味野"};
+const BM={"AR":"有富","NK":"中村","SS":"篠坂","KM":"北村","NI":"西今在家","SB":"菖蒲","FM":"古海","MD":"本高","BB":"馬場","HT":"服部","KR":"高路","TN":"徳尾","YG":"山が鼻","AJ":"味野"};
 const S_OPTS=['入水','ちょい入れ','止水','中干し','水尻外し','除草剤投入','確認のみ'];
 const S_COL={入水:'#3498db',ちょい入れ:'#5dade2',止水:'#e67e22',中干し:'#e74c3c',水尻外し:'#a04000',除草剤投入:'#8e44ad',確認のみ:'#95a5a6'};
-
 const CROP_GROUPS=[
   {key:'ZR1',color:'#1abc9c',label:'ZR1'},
   {key:'きぬむすめ',color:'#9b59b6',label:'きぬむすめ'},
@@ -13,40 +12,33 @@ const CROP_GROUPS=[
   {key:'こしひかり',color:'#e74c3c',label:'こしひかり'},
   {key:'その他',color:'#95a5a6',label:'その他'},
 ];
-function getCropGroup(crop){
-  if(!crop)return CROP_GROUPS[6];
-  for(let i=0;i<CROP_GROUPS.length-1;i++){if(crop.includes(CROP_GROUPS[i].key))return CROP_GROUPS[i];}
-  return CROP_GROUPS[6];
-}
 const LEGS={
   date:[{c:'#2ecc71',l:'2日以内'},{c:'#f39c12',l:'3日'},{c:'#e74c3c',l:'4日以上'},{c:'#8e44ad',l:'除草剤投入中'},{c:'#95a5a6',l:'未記録'}],
   status:[{c:'#3498db',l:'入水'},{c:'#5dade2',l:'ちょい入れ'},{c:'#e67e22',l:'止水'},{c:'#e74c3c',l:'中干し'},{c:'#a04000',l:'水尻外し'},{c:'#8e44ad',l:'除草剤投入'},{c:'#95a5a6',l:'未記録'}],
   crop:CROP_GROUPS.map(g=>({c:g.color,l:g.label})),
 };
+function getCropGroup(crop){
+  if(!crop)return CROP_GROUPS[6];
+  for(let i=0;i<6;i++){if(crop.includes(CROP_GROUPS[i].key))return CROP_GROUPS[i];}
+  return CROP_GROUPS[6];
+}
 
 let GJ=null;
-let records={},allHist=[],kusaData={},taskData={};
+let records={},allHist=[],kusaData={},memoData={},memoHistAll=[];
 let mode='date',selBlocks=new Set(),selCrops=new Set(),alertFilter=false;
 let curUser=localStorage.getItem('osf_user')||'';
 let selField=null,selStatus=null,histOpen=false,editMode=false,editOrigTime=null;
 let multiMode=false,multiSelected=new Set();
 let layers={},markers={};
 let map;
+// 未確定の変更（記録するボタンで確定）
+let pendingKusa=null; // null | '要草刈り' | '解除'
 
 async function init(){
-  try{
-    const r=await fetch('fields.geojson');
-    GJ=await r.json();
-  }catch(e){
-    document.getElementById('loading').textContent='圃場データの読み込みに失敗しました';
-    return;
-  }
+  try{const r=await fetch('fields.geojson');GJ=await r.json();}
+  catch(e){document.getElementById('loading').textContent='圃場データの読み込みに失敗しました';return;}
   document.getElementById('loading').style.display='none';
-  initMap();
-  initFilters();
-  updateLegend();
-  renderMap();
-  loadRecords();
+  initMap();initFilters();updateLegend();renderMap();loadRecords();
   setInterval(loadRecords,60000);
 }
 
@@ -58,32 +50,34 @@ function initMap(){
   locCtrl.onAdd=function(){
     const d=L.DomUtil.create('div','leaflet-bar leaflet-control');
     d.innerHTML='<a href="#" style="font-size:16px;display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:#fff">📍</a>';
-    d.onclick=e=>{e.preventDefault();map.locate({setView:true,maxZoom:17});};
-    return d;
+    d.onclick=e=>{e.preventDefault();map.locate({setView:true,maxZoom:17});};return d;
   };
   locCtrl.addTo(map);
   let locMk=null;
-  map.on('locationfound',e=>{
-    if(locMk)map.removeLayer(locMk);
-    locMk=L.circleMarker(e.latlng,{radius:10,color:'#fff',weight:2,fillColor:'#3498db',fillOpacity:0.9}).addTo(map);
-  });
+  map.on('locationfound',e=>{if(locMk)map.removeLayer(locMk);locMk=L.circleMarker(e.latlng,{radius:10,color:'#fff',weight:2,fillColor:'#3498db',fillOpacity:0.9}).addTo(map);});
   map.on('locationerror',()=>alert('現在地を取得できませんでした'));
 }
 
 function initFilters(){
+  // ブロックフィルター
   const blockCodes=[...new Set(GJ.features.map(f=>(f.properties.field_id||'').replace(/-.*/, '')).filter(c=>c&&BM[c]))].sort();
   blockCodes.forEach(c=>{
-    const d=document.createElement('div');d.className='fopt';d.dataset.c=c;
+    const d=document.createElement('div');d.className='fopt';
     d.innerHTML='<div class="fchk" id="bfc-'+c+'"></div>'+BM[c]+'('+c+')';
     d.addEventListener('click',()=>toggleBlock(c));
     document.getElementById('block-options').appendChild(d);
   });
-  CROP_GROUPS.forEach(g=>{
-    const cnt=GJ.features.filter(f=>getCropGroup(f.properties.crop||'').key===g.key).length;
-    if(cnt===0)return;
+  // 品種フィルター：個別品種ごとに表示（「その他」まとめなし）
+  const allCrops=[...new Set(GJ.features.map(f=>(f.properties.crop||'').trim()).filter(Boolean))].sort();
+  allCrops.forEach(cropName=>{
+    const cnt=GJ.features.filter(f=>(f.properties.crop||'').trim()===cropName).length;
+    const grp=getCropGroup(cropName);
+    const safeId='cgfc-'+cropName.replace(/\s+/g,'_').replace(/[^\w\u3040-\u9fff]/g,'X');
     const d=document.createElement('div');d.className='fopt';
-    d.innerHTML='<div class="fchk" id="cgfc-'+g.key+'"></div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+g.color+';margin-right:4px;"></span>'+g.label+' ('+cnt+'枚)';
-    d.addEventListener('click',()=>toggleCropGroup(g.key));
+    d.innerHTML='<div class="fchk" id="'+safeId+'"></div>'
+      +'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+grp.color+';margin-right:4px;vertical-align:middle;"></span>'
+      +cropName+' <span style="color:#aaa">('+cnt+'枚)</span>';
+    d.addEventListener('click',()=>toggleCrop(cropName,safeId));
     document.getElementById('crop-options').appendChild(d);
   });
 }
@@ -111,15 +105,15 @@ function toggleBlock(c){
     if(feats.length>0){const g=L.geoJSON({type:'FeatureCollection',features:feats});map.fitBounds(g.getBounds().pad(0.1));}
   }
 }
-function toggleCropGroup(key){
-  selCrops.has(key)?selCrops.delete(key):selCrops.add(key);
-  const el=document.getElementById('cgfc-'+key);if(el)el.classList.toggle('on',selCrops.has(key));
+function toggleCrop(cropName,safeId){
+  selCrops.has(cropName)?selCrops.delete(cropName):selCrops.add(cropName);
+  const el=document.getElementById(safeId);if(el)el.classList.toggle('on',selCrops.has(cropName));
   const btn=document.getElementById('crop-toggle-btn');
   btn.textContent=selCrops.size===0?'🌾 品種 ▾':[...selCrops].join('・')+' ▾';
   btn.classList.toggle('filtered',selCrops.size>0);
   renderMap();
   if(selCrops.size>0){
-    const feats=GJ.features.filter(f=>selCrops.has(getCropGroup(f.properties.crop||'').key));
+    const feats=GJ.features.filter(f=>selCrops.has((f.properties.crop||'').trim()));
     if(feats.length>0){const g=L.geoJSON({type:'FeatureCollection',features:feats});map.fitBounds(g.getBounds().pad(0.1));}
   }
 }
@@ -144,7 +138,6 @@ function toggleAlertFilter(){
   document.getElementById('alert-filter-btn').classList.toggle('active',alertFilter);
   renderMap();
 }
-
 function toggleMultiMode(){multiMode=!multiMode;document.getElementById('multi-btn').classList.toggle('active',multiMode);if(!multiMode)clearMultiSelect();}
 function clearMultiSelect(){
   multiSelected.clear();multiMode=false;
@@ -180,10 +173,10 @@ async function bulkConfirmOnly(){
 
 function openMultiPanel(){
   if(multiSelected.size===0)return;
-  selField=null;selStatus=null;exitEditMode();
+  selField=null;selStatus=null;pendingKusa=null;exitEditMode();
   const targets=[...multiSelected];
-  const hasKusa=targets.some(nm=>kusaData[nm]&&kusaData[nm].status==='要草刈り');
-  const hasTask=targets.some(nm=>taskData[nm]&&taskData[nm].status==='未完了');
+  const hasKusa=targets.some(nm=>kusaData[nm]);
+  const hasMemo=targets.some(nm=>memoData[nm]);
   document.getElementById('pt').textContent=multiSelected.size+'枚の一括記録';
   document.getElementById('pm').textContent=targets.slice(0,3).join('、')+(targets.length>3?' 他'+(targets.length-3)+'枚':'');
   document.getElementById('pl').textContent='';document.getElementById('pl').style.cssText='';
@@ -195,39 +188,37 @@ function openMultiPanel(){
   document.getElementById('cancel-edit-btn').style.display='none';
   document.getElementById('kusa-section').style.display='none';
   document.getElementById('task-section').style.display='none';
-  const bulkExtra=document.getElementById('bulk-extra');
-  bulkExtra.innerHTML='';
+  const bulkExtra=document.getElementById('bulk-extra');bulkExtra.innerHTML='';
   if(hasKusa){
-    const btn=document.createElement('button');
-    btn.className='sub-btn';
-    btn.style.cssText='width:100%;padding:9px;background:#27ae60;color:#fff;border-color:#27ae60;font-weight:700;margin-bottom:6px;';
-    btn.textContent='✅ 草刈り完了（選択圃場すべて）';
+    const btn=document.createElement('button');btn.className='sub-btn';
+    btn.style.cssText='width:100%;padding:9px;background:#27ae60;color:#fff;border-color:#27ae60;font-weight:700;margin-bottom:6px;font-size:13px;border-radius:10px;';
+    btn.textContent='✅ 草刈りアラート解除（選択圃場すべて）';
     btn.addEventListener('click',async()=>{
-      const cnt=targets.filter(nm=>kusaData[nm]&&kusaData[nm].status==='要草刈り').length;
-      if(!confirm(cnt+'枚の草刈りを完了にします'))return;
+      const cnt=targets.filter(nm=>kusaData[nm]).length;
+      if(!confirm(cnt+'枚の草刈りアラートを解除します'))return;
+      if(!curUser){const n=prompt('担当者名');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
       for(const nm of targets){
-        if(kusaData[nm]&&kusaData[nm].status==='要草刈り'){
-          kusaData[nm]={status:'草刈り済み',person:curUser,time:new Date().toISOString()};
-          await postToGAS({action:'kusa',name:nm,status:'草刈り済み',person:curUser}).catch(()=>{});
+        if(kusaData[nm]){
+          delete kusaData[nm];
+          await postToGAS({action:'kusa',name:nm,status:'解除',person:curUser}).catch(()=>{});
         }
       }
       closePanel();clearMultiSelect();renderMap();
     });
     bulkExtra.appendChild(btn);
   }
-  if(hasTask){
-    const btn=document.createElement('button');
-    btn.className='sub-btn';
-    btn.style.cssText='width:100%;padding:9px;background:#e67e22;color:#fff;border-color:#e67e22;font-weight:700;margin-bottom:6px;';
-    btn.textContent='✅ タスク対応済み（選択圃場すべて）';
+  if(hasMemo){
+    const btn=document.createElement('button');btn.className='sub-btn';
+    btn.style.cssText='width:100%;padding:9px;background:#e67e22;color:#fff;border-color:#e67e22;font-weight:700;margin-bottom:6px;font-size:13px;border-radius:10px;';
+    btn.textContent='✅ メモ対応済み（選択圃場すべて）';
     btn.addEventListener('click',async()=>{
-      const cnt=targets.filter(nm=>taskData[nm]&&taskData[nm].status==='未完了').length;
-      if(!confirm(cnt+'件のタスクを完了にします'))return;
+      const cnt=targets.filter(nm=>memoData[nm]).length;
+      if(!confirm(cnt+'件のメモを対応済みにします'))return;
+      if(!curUser){const n=prompt('担当者名');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
       for(const nm of targets){
-        if(taskData[nm]&&taskData[nm].status==='未完了'){
-          const prev=taskData[nm];
-          taskData[nm]={...prev,status:'完了',person:curUser,time:new Date().toISOString()};
-          await postToGAS({action:'task',name:nm,status:'完了',content:prev.content||'',person:curUser}).catch(()=>{});
+        if(memoData[nm]){
+          delete memoData[nm];
+          await postToGAS({action:'memo_resolve',name:nm,person:curUser}).catch(()=>{});
         }
       }
       closePanel();clearMultiSelect();renderMap();
@@ -239,7 +230,7 @@ function openMultiPanel(){
   S_OPTS.forEach(s=>{
     const b=document.createElement('button');b.className='sbtn s'+s;b.textContent=s;
     if(s==='確認のみ'&&hasUnrecorded){b.disabled=true;}
-    else{b.addEventListener('click',()=>{document.querySelectorAll('.sbtn').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');selStatus=s;});}
+    else{b.addEventListener('click',()=>{document.querySelectorAll('.sbtn').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');selStatus=s;updateSaveBtnState();});}
     sg.appendChild(b);
   });
   initTimeSelector(0,new Date().getHours());
@@ -248,6 +239,7 @@ function openMultiPanel(){
   document.getElementById('panel').classList.add('open');
   document.getElementById('overlay').classList.add('on');
   document.getElementById('multi-bar').style.display='none';
+  updateSaveBtnState();
 }
 
 function herbActive(rec){if(!rec||rec.status!=='除草剤投入')return false;return(Date.now()-new Date(rec.time).getTime())/3600000<72;}
@@ -265,16 +257,17 @@ function fieldColor(nm){
   const d=(Date.now()-new Date(r.time).getTime())/86400000;
   return d<2?'#2ecc71':d<4?'#f39c12':'#e74c3c';
 }
-function hasAlert(nm){
-  return (kusaData[nm]&&kusaData[nm].status==='要草刈り')||(taskData[nm]&&taskData[nm].status==='未完了');
-}
+function hasKusaAlert(nm){return !!(kusaData[nm]);}
+function hasMemoAlert(nm){return !!(memoData[nm]);}
+function hasAlert(nm){return hasKusaAlert(nm)||hasMemoAlert(nm);}
+
 function getLayerStyle(nm,feat){
   const col=fieldColor(nm);
   const isSel=multiSelected.has(nm);
   const blockCode=(feat.properties.field_id||'').replace(/-.*/, '');
-  const cropGroup=getCropGroup(feat.properties.crop||'').key;
+  const cropName=(feat.properties.crop||'').trim();
   const blockHighlight=selBlocks.size>0&&selBlocks.has(blockCode);
-  const cropHighlight=selCrops.size>0&&selCrops.has(cropGroup);
+  const cropHighlight=selCrops.size>0&&selCrops.has(cropName);
   const isHighlighted=blockHighlight||cropHighlight||isSel;
   let opacity=0.75;
   if(alertFilter){opacity=hasAlert(nm)?0.85:0.05;}
@@ -300,8 +293,9 @@ function renderMap(){
     const layer=L.geoJSON(feat,{style}).on('click',()=>multiMode?toggleFieldSelect(nm):openPanel(feat)).addTo(map);
     layers[nm]=layer;
     const blockCode=(feat.properties.field_id||'').replace(/-.*/, '');
+    const cropName=(feat.properties.crop||'').trim();
     const inBlock=selBlocks.size===0||selBlocks.has(blockCode);
-    const inCrop=selCrops.size===0||selCrops.has(getCropGroup(feat.properties.crop||'').key);
+    const inCrop=selCrops.size===0||selCrops.has(cropName);
     if(inBlock&&inCrop){filteredCount++;totalArea+=(parseFloat(feat.properties.area_a)||0);}
     if(hasAlert(nm)){
       try{
@@ -309,9 +303,9 @@ function renderMap(){
         if(!bounds.isValid())return;
         const center=bounds.getCenter();
         const icons=[];
-        if(kusaData[nm]&&kusaData[nm].status==='要草刈り')icons.push('🌿');
-        if(taskData[nm]&&taskData[nm].status==='未完了')icons.push('⚠️');
-        const mk=L.marker(center,{icon:L.divIcon({className:'',html:'<div style="font-size:14px;line-height:1;text-shadow:0 0 3px #fff">'+icons.join('')+'</div>',iconSize:[28,16],iconAnchor:[14,8]})}).addTo(map);
+        if(hasKusaAlert(nm))icons.push('🌿');
+        if(hasMemoAlert(nm))icons.push('⚠️');
+        const mk=L.marker(center,{icon:L.divIcon({className:'',html:'<div style="font-size:14px;line-height:1;text-shadow:0 0 3px #fff,0 0 3px #fff">'+icons.join('')+'</div>',iconSize:[28,16],iconAnchor:[14,8]})}).addTo(map);
         markers[nm]=mk;
       }catch(e){}
     }
@@ -330,8 +324,7 @@ function updateSummary(){
     GJ.features.forEach(f=>{const g=getCropGroup(f.properties.crop||'');cnt[g.label]=(cnt[g.label]||0)+1;});
     document.getElementById('summary').innerHTML=CROP_GROUPS.filter(g=>cnt[g.label]>0).map(g=>
       '<div class="sum-item"><div class="sum-dot" style="background:'+g.color+'"></div>'+g.label+' <span class="sum-num">'+cnt[g.label]+'</span></div>'
-    ).join('');
-    return;
+    ).join('');return;
   }
   const cnt={};let unr=0;
   GJ.features.forEach(f=>{
@@ -355,24 +348,17 @@ function updateSummary(){
 function setMode(m){
   mode=m;
   ['btn-date','btn-status','btn-crop'].forEach(id=>{
-    const el=document.getElementById(id);
-    if(el)el.classList.toggle('active',id==='btn-'+m);
+    const el=document.getElementById(id);if(el)el.classList.toggle('active',id==='btn-'+m);
   });
   updateLegend();renderMap();
 }
 function updateLegend(){
-  document.getElementById('legend').innerHTML=LEGS[mode].map(l=>
-    '<div class="leg-item"><div class="leg-dot" style="background:'+l.c+'"></div>'+l.l+'</div>'
-  ).join('');
+  document.getElementById('legend').innerHTML=LEGS[mode].map(l=>'<div class="leg-item"><div class="leg-dot" style="background:'+l.c+'"></div>'+l.l+'</div>').join('');
 }
 function initTimeSelector(d,h){
   document.getElementById('sel-date').value=String(d||0);
   const hs=document.getElementById('sel-hour');hs.innerHTML='';
-  for(let i=0;i<24;i++){
-    const o=document.createElement('option');o.value=i;o.textContent=i+'時';
-    if(i===(h!==undefined?h:new Date().getHours()))o.selected=true;
-    hs.appendChild(o);
-  }
+  for(let i=0;i<24;i++){const o=document.createElement('option');o.value=i;o.textContent=i+'時';if(i===(h!==undefined?h:new Date().getHours()))o.selected=true;hs.appendChild(o);}
 }
 function getSelectedTime(){
   const d=new Date();
@@ -385,85 +371,167 @@ function setButtonLoading(btnId,loading,defaultText){
   btn.disabled=loading;btn.textContent=loading?'送信中...':(defaultText||'記録する');
 }
 
-function setKusa(status,nm){
-  if(!nm&&selField)nm=selField.properties.name.trim();
-  if(!nm)return;
-  if(!curUser){const n=prompt('担当者名を入力してください');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
-  kusaData[nm]={status,person:curUser,time:new Date().toISOString()};
-  updateKusaUI(nm);renderMap();
-  postToGAS({action:'kusa',name:nm,status,person:curUser}).catch(()=>alert('畦草の保存に失敗しました'));
+// ============================================================
+// 草刈りアラート（pending → 記録するで確定）
+// ============================================================
+function setPendingKusa(status){
+  // 同じボタンを再度押したらキャンセル
+  pendingKusa=(pendingKusa===status)?null:status;
+  if(selField)updateKusaUI(selField.properties.name.trim());
+  updateSaveBtnState();
 }
+
 function updateKusaUI(nm){
   const body=document.getElementById('kusa-body');if(!body)return;
-  const kusa=kusaData[nm];body.innerHTML='';
-  if(!kusa||!kusa.status){
-    const btn=document.createElement('button');btn.className='sub-btn';btn.textContent='🌿 要草刈りに設定';
-    btn.style.cssText='width:100%;padding:8px;margin-top:2px;';
-    btn.addEventListener('click',()=>setKusa('要草刈り',nm));body.appendChild(btn);
-  }else if(kusa.status==='要草刈り'){
-    const d=kusa.time?new Date(kusa.time):null;
-    const info=document.createElement('div');info.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:8px;';
-    const badge=document.createElement('span');badge.className='sub-status kusa-need';badge.textContent='🌿 要草刈り';
-    const meta=document.createElement('span');meta.style.cssText='font-size:11px;color:#888;';
-    meta.textContent=d?(d.toLocaleDateString('ja')+' '+kusa.person):'';
-    info.appendChild(badge);info.appendChild(meta);body.appendChild(info);
-    const btn=document.createElement('button');btn.className='sub-btn';btn.textContent='✅ 草刈り完了にする';
-    btn.style.cssText='width:100%;padding:8px;background:#27ae60;color:#fff;border-color:#27ae60;font-weight:700;';
-    btn.addEventListener('click',()=>setKusa('草刈り済み',nm));body.appendChild(btn);
+  const currentActive=hasKusaAlert(nm);
+  body.innerHTML='';
+
+  // pending表示
+  if(pendingKusa){
+    const notice=document.createElement('div');notice.className='pending-notice';
+    notice.textContent='⏳ 「記録する」で '+(pendingKusa==='要草刈り'?'🌿 アラート発令':'✅ アラート解除')+'されます　（もう一度押すと取り消し）';
+    body.appendChild(notice);
+  }
+
+  if(!currentActive){
+    // アラートなし
+    if(pendingKusa==='要草刈り'){
+      // 取り消しボタン
+      const btn=document.createElement('button');btn.className='sub-btn kusa-cancel-btn';
+      btn.textContent='✕ 発令を取り消す';
+      btn.addEventListener('click',()=>setPendingKusa('要草刈り'));
+      body.appendChild(btn);
+    }else{
+      // 発令ボタン
+      const btn=document.createElement('button');btn.className='sub-btn kusa-alert-btn';
+      btn.textContent='🌿 草刈りアラートを発令する';
+      btn.addEventListener('click',()=>setPendingKusa('要草刈り'));
+      body.appendChild(btn);
+    }
   }else{
-    const d=kusa.time?new Date(kusa.time):null;
-    const info=document.createElement('div');info.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:8px;';
-    const badge=document.createElement('span');badge.className='sub-status kusa-done';badge.textContent='✅ 草刈り済み';
-    const meta=document.createElement('span');meta.style.cssText='font-size:11px;color:#888;';
+    // アラート発令中
+    const kusa=kusaData[nm];
+    const d=kusa&&kusa.time?new Date(kusa.time):null;
+    const info=document.createElement('div');info.className='kusa-active-info';
+    const badge=document.createElement('span');badge.className='sub-status kusa-need';badge.textContent='🌿 草刈りアラート発令中';
+    const meta=document.createElement('span');meta.className='kusa-meta';
     meta.textContent=d?(d.toLocaleDateString('ja')+' '+kusa.person):'';
     info.appendChild(badge);info.appendChild(meta);body.appendChild(info);
-    const btn=document.createElement('button');btn.className='sub-btn';btn.textContent='🌿 要草刈りに戻す';
-    btn.style.cssText='width:100%;padding:8px;';
-    btn.addEventListener('click',()=>setKusa('要草刈り',nm));body.appendChild(btn);
+
+    if(pendingKusa==='解除'){
+      const btn=document.createElement('button');btn.className='sub-btn kusa-cancel-btn';
+      btn.textContent='✕ 解除を取り消す';
+      btn.addEventListener('click',()=>setPendingKusa('解除'));
+      body.appendChild(btn);
+    }else{
+      const btn=document.createElement('button');btn.className='sub-btn kusa-resolve-btn';
+      btn.textContent='✅ 草刈りアラートを解除する';
+      btn.addEventListener('click',()=>setPendingKusa('解除'));
+      body.appendChild(btn);
+    }
   }
 }
 
-function addTask(){
+// ============================================================
+// メモ
+// ============================================================
+function updateMemoUI(nm){
+  const list=document.getElementById('task-list');
+  const inputRow=document.getElementById('task-input-row');
+  if(!list)return;
+  const active=memoData[nm];
+  list.innerHTML='';
+
+  if(active){
+    // アクティブなメモを表示
+    const d=active.time?new Date(active.time):null;
+    const wrap=document.createElement('div');wrap.className='memo-active-wrap';
+    const text=document.createElement('div');text.className='memo-content';text.textContent=active.content;
+    const meta=document.createElement('div');meta.className='memo-meta';
+    meta.textContent=(d?d.toLocaleDateString('ja')+' '+d.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'})+' ':'')+(active.person||'');
+    const resolveBtn=document.createElement('button');resolveBtn.className='sub-btn memo-resolve-btn';
+    resolveBtn.textContent='✅ 対応済みにする';
+    resolveBtn.addEventListener('click',()=>resolveMemo(nm));
+    wrap.appendChild(text);wrap.appendChild(meta);wrap.appendChild(resolveBtn);
+    list.appendChild(wrap);
+    // アクティブメモがある間はテキスト入力を非表示
+    if(inputRow)inputRow.style.display='none';
+  }else{
+    if(inputRow)inputRow.style.display='flex';
+  }
+
+  // メモ履歴
+  const hist=memoHistAll.filter(h=>h[0]===nm);
+  if(hist.length>0){
+    const toggle=document.createElement('div');toggle.className='memo-hist-toggle';
+    toggle.textContent='▶ メモ履歴（'+hist.length+'件）';
+    let open=false;
+    const histWrap=document.createElement('div');histWrap.style.display='none';
+    [...hist].reverse().forEach(h=>{
+      // h: [name, content, person, time, status, resolvedBy, resolvedTime]
+      const row=document.createElement('div');row.className='memo-hist-row';
+      const d=h[3]?new Date(h[3]):null;
+      const dStr=d?d.toLocaleDateString('ja')+' '+d.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'}):'';
+      let html='<b style="color:#333">'+h[1]+'</b><br><span style="color:#aaa">登録：'+dStr+' '+(h[2]||'')+'</span>';
+      if(h[4]==='対応済み'&&h[5]){
+        const rd=h[6]?new Date(h[6]):null;
+        const rdStr=rd?rd.toLocaleDateString('ja')+' '+rd.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'}):'';
+        html+='<br><span style="color:#27ae60">✅ 対応済：'+rdStr+' '+(h[5]||'')+'</span>';
+      }else if(h[4]==='未対応'){
+        html+='<br><span style="color:#e67e22">● 未対応</span>';
+      }
+      row.innerHTML=html;
+      histWrap.appendChild(row);
+    });
+    toggle.addEventListener('click',()=>{open=!open;histWrap.style.display=open?'block':'none';toggle.textContent=(open?'▼':'▶')+' メモ履歴（'+hist.length+'件）';});
+    list.appendChild(toggle);list.appendChild(histWrap);
+  }
+}
+
+async function resolveMemo(nm){
+  if(!curUser){const n=prompt('担当者名を入力してください');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
+  const prev=memoData[nm];if(!prev)return;
+  const resolvedTime=new Date().toISOString();
+  // ローカル更新
+  memoHistAll=memoHistAll.map(h=>(h[0]===nm&&h[1]===prev.content&&h[4]==='未対応')
+    ?[h[0],h[1],h[2],h[3],'対応済み',curUser,resolvedTime]:h);
+  delete memoData[nm];
+  updateMemoUI(nm);renderMap();
+  try{await postToGAS({action:'memo_resolve',name:nm,person:curUser});}
+  catch(e){alert('対応済みの保存に失敗しました');}
+}
+
+async function addMemoFromUI(){
   if(!selField)return;
-  const input=document.getElementById('task-input');const content=input.value.trim();if(!content)return;
+  const input=document.getElementById('task-input');
+  const content=input.value.trim();if(!content)return;
   const nm=selField.properties.name.trim();
   if(!curUser){const n=prompt('担当者名を入力してください');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
-  taskData[nm]={status:'未完了',content,person:curUser,time:new Date().toISOString()};
-  input.value='';updateTaskUI(nm);renderMap();
-  postToGAS({action:'task',name:nm,status:'未完了',content,person:curUser}).catch(()=>alert('タスクの保存に失敗しました'));
-}
-function completeTask(nm){
-  if(!curUser){const n=prompt('担当者名を入力してください');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
-  const prev=taskData[nm];
-  taskData[nm]={...prev,status:'完了',person:curUser,time:new Date().toISOString()};
-  updateTaskUI(nm);renderMap();
-  postToGAS({action:'task',name:nm,status:'完了',content:prev.content||'',person:curUser}).catch(()=>alert('タスクの保存に失敗しました'));
-}
-function updateTaskUI(nm){
-  const task=taskData[nm];const list=document.getElementById('task-list');if(!list)return;
-  if(!task||!task.content){list.innerHTML='';return;}
-  const d=task.time?new Date(task.time):null;
-  const dateStr=d?(d.toLocaleDateString('ja')+' '+task.person):'';
-  list.innerHTML='';
-  const wrap=document.createElement('div');wrap.style.cssText='display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap;';
-  const span1=document.createElement('span');span1.className='sub-status '+(task.status==='未完了'?'task-open':'task-done');span1.textContent=task.status;
-  const span2=document.createElement('span');span2.style.cssText='font-size:12px;flex:1';span2.textContent=task.content;
-  wrap.appendChild(span1);wrap.appendChild(span2);
-  if(task.status==='未完了'){
-    const btn=document.createElement('button');btn.className='sub-btn';
-    btn.style.cssText='background:#27ae60;color:#fff;border-color:#27ae60';btn.textContent='完了';
-    btn.addEventListener('click',()=>completeTask(nm));wrap.appendChild(btn);
-  }
-  list.appendChild(wrap);
-  const hist=document.createElement('div');hist.className='sub-hist';hist.textContent=dateStr;list.appendChild(hist);
+  const time=new Date().toISOString();
+  memoData[nm]={content,person:curUser,time};
+  memoHistAll.push([nm,content,curUser,time,'未対応','','']);
+  input.value='';updateMemoUI(nm);renderMap();updateSaveBtnState();
+  try{await postToGAS({action:'memo',name:nm,content,person:curUser});}
+  catch(e){alert('メモの保存に失敗しました');}
 }
 
+function updateSaveBtnState(){
+  const btn=document.getElementById('savebtn');
+  if(!btn||btn.style.display==='none')return;
+  const memoInput=document.getElementById('task-input');
+  const hasMemoText=memoInput&&memoInput.value.trim().length>0&&!memoData[selField&&selField.properties.name.trim()];
+  btn.disabled=!(selStatus||pendingKusa||hasMemoText);
+}
+
+// ============================================================
+// パネル開閉
+// ============================================================
 function openPanel(feat){
-  const p=feat.properties;selField=feat;selStatus=null;histOpen=false;exitEditMode();
+  const p=feat.properties;selField=feat;selStatus=null;pendingKusa=null;histOpen=false;exitEditMode();
   document.getElementById('pt').textContent=p.name.trim();
   const bn=BM[(p.field_id||'').replace(/-.*/, '')]||'';
-  const cropLabel=getCropGroup(p.crop||'').label;
-  document.getElementById('pm').textContent=[p.field_id,bn,p.area_a?p.area_a+'a':'',cropLabel&&cropLabel!=='その他'?cropLabel:''].filter(Boolean).join(' | ')||'詳細なし';
+  const cropLabel=p.crop||'';
+  document.getElementById('pm').textContent=[p.field_id,bn,p.area_a?p.area_a+'a':'',cropLabel].filter(Boolean).join(' | ')||'詳細なし';
   const r=records[p.name.trim()];
   const pl=document.getElementById('pl');const ht=document.getElementById('htimer');
   if(r){
@@ -478,24 +546,26 @@ function openPanel(feat){
   document.getElementById('kusa-section').style.display='block';
   document.getElementById('task-section').style.display='block';
   document.getElementById('bulk-extra').innerHTML='';
-  updateKusaUI(p.name.trim());updateTaskUI(p.name.trim());
+  updateKusaUI(p.name.trim());
+  updateMemoUI(p.name.trim());
   const sg=document.getElementById('sgrid');sg.innerHTML='';
   const hasRecord=!!records[p.name.trim()];
   S_OPTS.forEach(s=>{
     const b=document.createElement('button');b.className='sbtn s'+s;b.textContent=s;
     if(s==='確認のみ'&&!hasRecord){b.disabled=true;b.title='未記録の圃場には使用できません';}
-    else{b.addEventListener('click',()=>{document.querySelectorAll('.sbtn').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');selStatus=s;});}
+    else{b.addEventListener('click',()=>{document.querySelectorAll('.sbtn').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');selStatus=s;updateSaveBtnState();});}
     sg.appendChild(b);
   });
   initTimeSelector(0,new Date().getHours());
   document.getElementById('memo').value='';
   document.getElementById('multi-banner').style.display='none';
+  // 過去の記録
   const fh=allHist.filter(h=>h[0]===p.name.trim()).slice(-10).reverse();
   const hs=document.getElementById('hist-section');
   if(fh.length>0){
     hs.style.display='block';
     document.getElementById('hist-toggle').textContent='▶ 過去の記録（'+fh.length+'件）';
-    document.getElementById('hist-list').style.display='none';
+    document.getElementById('hist-list').style.display='none';histOpen=false;
     const now=new Date();const todayStr=now.toLocaleDateString('ja');
     const yest=new Date(now);yest.setDate(yest.getDate()-1);const yesterdayStr=yest.toLocaleDateString('ja');
     const histContainer=document.getElementById('hist-list');histContainer.innerHTML='';
@@ -512,9 +582,7 @@ function openPanel(feat){
         db.dataset.time=h[4];
         db.addEventListener('click',function(){
           const t=this.dataset.time;const dd=new Date(t);
-          if(confirm('削除しますか?\n'+dd.toLocaleDateString('ja')+' '+dd.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'}))){
-            deleteRecord(p.name.trim(),t);
-          }
+          if(confirm('削除しますか?\n'+dd.toLocaleDateString('ja')+' '+dd.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'}))){deleteRecord(p.name.trim(),t);}
         });
         row.appendChild(eb);row.appendChild(db);
       }
@@ -523,6 +591,7 @@ function openPanel(feat){
   }else{hs.style.display='none';}
   document.getElementById('panel').classList.add('open');
   document.getElementById('overlay').classList.add('on');
+  updateSaveBtnState();
 }
 
 function enterEditMode(origTime,origStatus,origMemo){
@@ -543,9 +612,13 @@ function exitEditMode(){
   editMode=false;editOrigTime=null;
   document.getElementById('panel').classList.remove('edit-mode');
   document.getElementById('edit-banner').style.display='none';
-  document.getElementById('savebtn').style.display='block';document.getElementById('savebtn').textContent='記録する';document.getElementById('savebtn').disabled=false;
-  document.getElementById('edit-savebtn').style.display='none';document.getElementById('edit-savebtn').textContent='✏ 修正を保存';document.getElementById('edit-savebtn').disabled=false;
+  document.getElementById('savebtn').style.display='block';
+  document.getElementById('savebtn').textContent='記録する';
+  document.getElementById('edit-savebtn').style.display='none';
+  document.getElementById('edit-savebtn').textContent='✏ 修正を保存';
+  document.getElementById('edit-savebtn').disabled=false;
   document.getElementById('cancel-edit-btn').style.display='none';
+  updateSaveBtnState();
 }
 function toggleHist(){
   histOpen=!histOpen;
@@ -555,7 +628,7 @@ function toggleHist(){
 function closePanel(){
   document.getElementById('panel').classList.remove('open');
   document.getElementById('overlay').classList.remove('on');
-  exitEditMode();selField=null;
+  exitEditMode();selField=null;pendingKusa=null;
   document.getElementById('multi-banner').style.display='none';
   if(multiSelected.size>0)document.getElementById('multi-bar').style.display='flex';
 }
@@ -570,18 +643,21 @@ async function deleteRecord(fieldName,origTime){
 }
 async function postToGAS(body){const res=await fetch(GAS,{method:'POST',body:JSON.stringify(body)});return res.json();}
 async function safeFetch(url){try{const r=await fetch(url);return await r.json();}catch(e){return null;}}
+
 async function loadRecords(){
   const t=Date.now();
-  const[r1,r2,r3,r4]=await Promise.all([
+  const[r1,r2,r3,r4,r5]=await Promise.all([
     safeFetch(GAS+'?t='+t),
     safeFetch(GAS+'?mode=history&t='+t),
     safeFetch(GAS+'?mode=kusa&t='+t),
-    safeFetch(GAS+'?mode=task&t='+t),
+    safeFetch(GAS+'?mode=memo&t='+t),
+    safeFetch(GAS+'?mode=memo_hist&t='+t),
   ]);
   if(r1&&typeof r1==='object')records=r1;
   if(r2&&Array.isArray(r2))allHist=r2;
   if(r3&&typeof r3==='object')kusaData=r3;
-  if(r4&&typeof r4==='object')taskData=r4;
+  if(r4&&typeof r4==='object')memoData=r4;
+  if(r5&&Array.isArray(r5))memoHistAll=r5;
   Object.keys(records).forEach(nm=>{const r=records[nm];if(r&&r.status==='除草剤投入'&&!herbActive(r))records[nm]={...r,status:'止水'};});
   renderMap();
   document.getElementById('last-update').textContent=new Date().toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'})+'更新';
@@ -589,13 +665,24 @@ async function loadRecords(){
 function changeUser(){const n=prompt('担当者名を入力してください',curUser);if(n!==null){curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n||'未設定';}}
 
 document.addEventListener('DOMContentLoaded',()=>{
+  // メモ入力欄の変更でsavebtn状態更新
+  document.getElementById('task-input').addEventListener('input',updateSaveBtnState);
+
   document.getElementById('savebtn').addEventListener('click',async()=>{
-    if(!selStatus){
+    const memoInput=document.getElementById('task-input');
+    const memoText=memoInput?memoInput.value.trim():'';
+    const hasActiveMemo=selField&&memoData[selField.properties.name.trim()];
+    const hasMemoToAdd=memoText&&!hasActiveMemo;
+
+    if(!selStatus&&!pendingKusa&&!hasMemoToAdd){
       const ov=document.getElementById('overlay');ov.style.pointerEvents='none';
-      alert('水の状態を選択してください');
+      alert('水の状態を選択するか、草刈りアラートを変更するか、メモを入力してください');
       setTimeout(()=>ov.style.pointerEvents='',100);return;
     }
+
+    // 複数選択モード
     if(multiSelected.size>0&&selField===null){
+      if(!selStatus)return;
       setButtonLoading('savebtn',true);
       if(!curUser){const n=prompt('担当者名を入力してください');if(!n){setButtonLoading('savebtn',false,'記録する');return;}curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
       const memo=document.getElementById('memo').value;const time=getSelectedTime();const targets=[...multiSelected];
@@ -604,15 +691,51 @@ document.addEventListener('DOMContentLoaded',()=>{
       catch(e){alert('保存に失敗しました');}
       setButtonLoading('savebtn',false,'記録する');clearMultiSelect();closePanel();renderMap();return;
     }
+
     if(!selField)return;
     setButtonLoading('savebtn',true);
     if(!curUser){const n=prompt('担当者名を入力してください');if(!n){setButtonLoading('savebtn',false,'記録する');return;}curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
-    const nm=selField.properties.name.trim();const memo=document.getElementById('memo').value;
-    const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;const time=getSelectedTime();
-    records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo,time};
-    try{await postToGAS({name:nm,status:newS,person:curUser,memo,time});}catch(e){alert('保存に失敗しました');}
-    setButtonLoading('savebtn',false,'記録する');closePanel();renderMap();
+
+    const nm=selField.properties.name.trim();
+    const waterMemo=document.getElementById('memo').value;
+    const time=getSelectedTime();
+    const errors=[];
+
+    // 水管理記録
+    if(selStatus){
+      const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;
+      records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo:waterMemo,time};
+      try{await postToGAS({name:nm,status:newS,person:curUser,memo:waterMemo,time});}
+      catch(e){errors.push('水管理');}
+    }
+
+    // 草刈りアラート
+    if(pendingKusa){
+      if(pendingKusa==='要草刈り'){
+        kusaData[nm]={status:'要草刈り',person:curUser,time:new Date().toISOString()};
+      }else{
+        delete kusaData[nm];
+      }
+      try{await postToGAS({action:'kusa',name:nm,status:pendingKusa,person:curUser});}
+      catch(e){errors.push('草刈りアラート');}
+    }
+
+    // メモ追加
+    if(hasMemoToAdd){
+      const memoTime=new Date().toISOString();
+      memoData[nm]={content:memoText,person:curUser,time:memoTime};
+      memoHistAll.push([nm,memoText,curUser,memoTime,'未対応','','']);
+      if(memoInput)memoInput.value='';
+      try{await postToGAS({action:'memo',name:nm,content:memoText,person:curUser});}
+      catch(e){errors.push('メモ');}
+    }
+
+    if(errors.length>0)alert(errors.join('、')+'の保存に失敗しました');
+    setButtonLoading('savebtn',false,'記録する');
+    pendingKusa=null;
+    closePanel();renderMap();
   });
+
   document.getElementById('edit-savebtn').addEventListener('click',async()=>{
     if(!selField||!selStatus){alert('水の状態を選択してください');return;}
     setButtonLoading('edit-savebtn',true,'✏ 修正を保存');
