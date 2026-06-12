@@ -735,6 +735,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       // 成功確定後にローカル状態を更新
       if(waterNewS){
         records[nm]={status:waterNewS,checkedOnly:!!payload.water.checkedOnly,person:curUser,memo:waterMemo,time};
+        allHist.push([nm,waterNewS,curUser,waterMemo,time]); // deleteRecord用に履歴にも追加
       }
       if(pendingKusa){
         if(pendingKusa==='要草刈り'){kusaData[nm]={status:'要草刈り',person:curUser,time:new Date().toISOString()};}
