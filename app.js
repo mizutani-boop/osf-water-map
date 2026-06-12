@@ -216,15 +216,14 @@ function openMultiPanel(){
     btn.style.cssText='width:100%;padding:9px;background:#27ae60;color:#fff;border-color:#27ae60;font-weight:700;margin-bottom:6px;font-size:13px;border-radius:10px;';
     btn.textContent='✅ 草刈りアラート解除（選択圃場すべて）';
     btn.addEventListener('click',async()=>{
-      const cnt=targets.filter(nm=>kusaData[nm]).length;
-      if(!confirm(cnt+'枚の草刈りアラートを解除します'))return;
+      const kusaTargets=targets.filter(nm=>kusaData[nm]);
+      if(!confirm(kusaTargets.length+'枚の草刈りアラートを解除します'))return;
       if(!curUser){const n=prompt('担当者名');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
-      for(const nm of targets){
-        if(kusaData[nm]){
-          delete kusaData[nm];
-          await postToGAS({action:'kusa',name:nm,status:'解除',person:curUser}).catch(()=>{});
-        }
-      }
+      btn.disabled=true;btn.textContent='送信中...';
+      try{
+        await postToGAS({action:'kusa_bulk',names:kusaTargets,status:'解除',person:curUser});
+        kusaTargets.forEach(nm=>delete kusaData[nm]);
+      }catch(e){alert('草刈りアラート解除の保存に失敗しました');btn.disabled=false;btn.textContent='✅ 草刈りアラート解除（選択圃場すべて）';return;}
       closePanel();clearMultiSelect();renderMap();
     });
     bulkExtra.appendChild(btn);
@@ -234,15 +233,14 @@ function openMultiPanel(){
     btn.style.cssText='width:100%;padding:9px;background:#e67e22;color:#fff;border-color:#e67e22;font-weight:700;margin-bottom:6px;font-size:13px;border-radius:10px;';
     btn.textContent='✅ メモ対応済み（選択圃場すべて）';
     btn.addEventListener('click',async()=>{
-      const cnt=targets.filter(nm=>memoData[nm]).length;
-      if(!confirm(cnt+'件のメモを対応済みにします'))return;
+      const memoTargets=targets.filter(nm=>memoData[nm]);
+      if(!confirm(memoTargets.length+'件のメモを対応済みにします'))return;
       if(!curUser){const n=prompt('担当者名');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
-      for(const nm of targets){
-        if(memoData[nm]){
-          delete memoData[nm];
-          await postToGAS({action:'memo_resolve',name:nm,person:curUser}).catch(()=>{});
-        }
-      }
+      btn.disabled=true;btn.textContent='送信中...';
+      try{
+        await postToGAS({action:'memo_resolve_bulk',names:memoTargets,person:curUser});
+        memoTargets.forEach(nm=>delete memoData[nm]);
+      }catch(e){alert('メモ対応済みの保存に失敗しました');btn.disabled=false;btn.textContent='✅ メモ対応済み（選択圃場すべて）';return;}
       closePanel();clearMultiSelect();renderMap();
     });
     bulkExtra.appendChild(btn);
