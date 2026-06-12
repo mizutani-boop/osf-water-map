@@ -202,10 +202,11 @@ async function bulkConfirmOnly(){
   if(!confirm(multiSelected.size+'枚を確認済みにします。よろしいですか？'))return;
   if(!curUser){const n=prompt('担当者名を入力してください');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
   const time=new Date().toISOString();const targets=[...multiSelected];
-  targets.forEach(nm=>{const prev=records[nm];records[nm]={...prev,checkedOnly:true,person:curUser,time};});
+  try{
+    await postToGAS({action:'bulk',records:targets.map(nm=>({name:nm,status:records[nm].status,person:curUser,memo:'',time}))});
+    targets.forEach(nm=>{const prev=records[nm];records[nm]={...prev,checkedOnly:true,person:curUser,time};});
+  }catch(e){alert('保存に失敗しました');return;}
   clearMultiSelect();renderMap();
-  try{await postToGAS({action:'bulk',records:targets.map(nm=>({name:nm,status:records[nm].status,person:curUser,memo:'',time}))});}
-  catch(e){alert('保存に失敗しました');}
 }
 
 function openMultiPanel(){
@@ -274,7 +275,6 @@ function openMultiPanel(){
     sg.appendChild(b);
   });
   initTimeSelector(0,new Date().getHours());
-  document.getElementById('memo').value='';
   document.getElementById('hist-section').style.display='none';
   document.getElementById('panel').classList.add('open');
   document.getElementById('overlay').classList.add('on');
@@ -641,7 +641,6 @@ function enterEditMode(origTime,origStatus,origMemo){
   document.getElementById('edit-savebtn').style.display='block';
   document.getElementById('cancel-edit-btn').style.display='block';
   document.querySelectorAll('.sbtn').forEach(b=>{b.disabled=false;b.classList.toggle('sel',b.textContent===origStatus);if(b.textContent===origStatus)selStatus=origStatus;});
-  document.getElementById('memo').value=origMemo||'';
   const d=new Date(origTime);const now=new Date();
   const diff=Math.floor((new Date(now.getFullYear(),now.getMonth(),now.getDate())-new Date(d.getFullYear(),d.getMonth(),d.getDate()))/86400000);
   initTimeSelector(Math.min(Math.max(diff,0),2),d.getHours());
@@ -672,13 +671,15 @@ function closePanel(){
   if(multiSelected.size>0)document.getElementById('multi-bar').style.display='flex';
 }
 async function deleteRecord(fieldName,origTime){
+  if(!confirm('この記録を削除しますか？'))return;
+  try{
+    await postToGAS({action:'delete',name:fieldName,time:origTime,person:curUser});
+  }catch(e){alert('削除の保存に失敗しました');return;}
   allHist=allHist.filter(h=>!(h[0]===fieldName&&Math.abs(new Date(h[4]).getTime()-new Date(origTime).getTime())<1000));
   const remaining=allHist.filter(h=>h[0]===fieldName);
   if(remaining.length>0){const latest=remaining[remaining.length-1];records[fieldName]={status:latest[1],person:latest[2],memo:latest[3],time:latest[4]};}
   else{delete records[fieldName];}
   closePanel();renderMap();
-  try{await postToGAS({action:'delete',name:fieldName,time:origTime,person:curUser});}
-  catch(e){alert('削除の保存に失敗しました');}
 }
 async function postToGAS(body){const res=await fetch(GAS,{method:'POST',body:JSON.stringify(body)});return res.json();}
 async function safeFetch(url){try{const r=await fetch(url);return await r.json();}catch(e){return null;}}
@@ -777,7 +778,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     setButtonLoading('edit-savebtn',true,'✏ 修正を保存');
     const nm=selField.properties.name.trim();const time=getSelectedTime();
     records[nm]={status:selStatus,checkedOnly:false,person:curUser,memo:'',time};
-    try{await postToGAS({name:nm,status:selStatus,person:curUser,memo:'',time,correction:true,originalTime:editOrigTime});}catch(e){alert('保存に失敗しました');}
+    try{await postToGAS({name:nm,status:selStatus,person:curUser,memo:'',time,correction:true,originalTime:editOrigTime});}
+    catch(e){alert('保存に失敗しました');setButtonLoading('edit-savebtn',false,'✏ 修正を保存');return;}
     setButtonLoading('edit-savebtn',false,'✏ 修正を保存');closePanel();renderMap();
   });
   document.getElementById('overlay').addEventListener('click',()=>closePanel());
