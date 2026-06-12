@@ -717,38 +717,40 @@ document.addEventListener('DOMContentLoaded',()=>{
     const nm=selField.properties.name.trim();
     const waterMemo=document.getElementById('memo').value;
     const time=getSelectedTime();
-    const errors=[];
 
-    // 水管理記録
+    // ペイロード構築（ローカル更新はまだしない）
+    const payload={action:'save',name:nm,person:curUser};
+    let waterNewS=null;
     if(selStatus){
-      const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;
-      records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo:waterMemo,time};
-      try{await postToGAS({name:nm,status:newS,person:curUser,memo:waterMemo,time});}
-      catch(e){errors.push('水管理');}
+      const prev=records[nm];
+      waterNewS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;
+      payload.water={status:waterNewS,checkedOnly:selStatus==='確認のみ',memo:waterMemo,time};
     }
+    if(pendingKusa)payload.kusa=pendingKusa;
+    if(hasMemoToAdd)payload.memo={content:memoText};
 
-    // 草刈りアラート
-    if(pendingKusa){
-      if(pendingKusa==='要草刈り'){
-        kusaData[nm]={status:'要草刈り',person:curUser,time:new Date().toISOString()};
-      }else{
-        delete kusaData[nm];
+    // 1回のPOSTで送信 → 成功後にローカル更新
+    try{
+      await postToGAS(payload);
+      // 成功確定後にローカル状態を更新
+      if(waterNewS){
+        records[nm]={status:waterNewS,checkedOnly:!!payload.water.checkedOnly,person:curUser,memo:waterMemo,time};
       }
-      try{await postToGAS({action:'kusa',name:nm,status:pendingKusa,person:curUser});}
-      catch(e){errors.push('草刈りアラート');}
+      if(pendingKusa){
+        if(pendingKusa==='要草刈り'){kusaData[nm]={status:'要草刈り',person:curUser,time:new Date().toISOString()};}
+        else{delete kusaData[nm];}
+      }
+      if(hasMemoToAdd){
+        const memoTime=new Date().toISOString();
+        memoData[nm]={content:memoText,person:curUser,time:memoTime};
+        memoHistAll.push([nm,memoText,curUser,memoTime,'未対応','','']);
+        if(memoInput)memoInput.value='';
+      }
+    }catch(e){
+      alert('保存に失敗しました。電波状況を確認して再度お試しください。');
+      setButtonLoading('savebtn',false,'記録する');return;
     }
 
-    // メモ追加
-    if(hasMemoToAdd){
-      const memoTime=new Date().toISOString();
-      memoData[nm]={content:memoText,person:curUser,time:memoTime};
-      memoHistAll.push([nm,memoText,curUser,memoTime,'未対応','','']);
-      if(memoInput)memoInput.value='';
-      try{await postToGAS({action:'memo',name:nm,content:memoText,person:curUser});}
-      catch(e){errors.push('メモ');}
-    }
-
-    if(errors.length>0)alert(errors.join('、')+'の保存に失敗しました');
     setButtonLoading('savebtn',false,'記録する');
     pendingKusa=null;
     closePanel();renderMap();
