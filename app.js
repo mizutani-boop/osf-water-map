@@ -22,8 +22,19 @@ function getCropGroup(crop){
   for(let i=0;i<6;i++){if(crop.includes(CROP_GROUPS[i].key))return CROP_GROUPS[i];}
   return CROP_GROUPS[6];
 }
+// 品種名から年号を除去（例：「26年きぬむすめ」→「きぬむすめ」）
+function normalizeCropName(crop){
+  if(!crop)return '';
+  return crop
+    .replace(/^(令和|R|H|平成)?\d+年度?[\s　]*/,'')
+    .replace(/^\d{2}年度?[\s　]*/,'')
+    .trim();
+}
 
-let GJ=null;
+// 品種名から年号プレフィックスを除去（例：「26年～きぬむすめ」→「きぬむすめ」）
+function cleanCropName(name) {
+  return name.replace(/^(令和|平成|昭和)?\d+年[産～~]?\s*/,'').trim() || name;
+}
 let records={},allHist=[],kusaData={},memoData={},memoHistAll=[];
 let mode='date',selBlocks=new Set(),selCrops=new Set(),alertFilter=false;
 let curUser=localStorage.getItem('osf_user')||'';
@@ -68,9 +79,9 @@ function initFilters(){
     document.getElementById('block-options').appendChild(d);
   });
   // 品種フィルター：グループ単位（きぬむすめ/ZR1等）＋グループ外は個別表示
-  // CROP_GROUPS[0-5] をまず表示
+  // 品種名は年号を除去して正規化
   CROP_GROUPS.slice(0,6).forEach(g=>{
-    const cnt=GJ.features.filter(f=>getCropGroup((f.properties.crop||'').trim()).key===g.key).length;
+    const cnt=GJ.features.filter(f=>getCropGroup(normalizeCropName((f.properties.crop||'').trim())).key===g.key).length;
     if(cnt===0)return;
     const d=document.createElement('div');d.className='fopt';
     d.innerHTML='<div class="fchk" id="cgfc-'+g.key+'"></div>'
@@ -79,15 +90,15 @@ function initFilters(){
     d.addEventListener('click',()=>toggleCrop(g.key,'cgfc-'+g.key,false));
     document.getElementById('crop-options').appendChild(d);
   });
-  // 「その他」に入る品種は個別に表示
-  const otherCrops=[...new Set(GJ.features.map(f=>(f.properties.crop||'').trim()).filter(c=>c&&getCropGroup(c).key==='その他'))].sort();
+  // 「その他」に入る品種は個別に表示（正規化後の名前で）
+  const otherCrops=[...new Set(GJ.features.map(f=>normalizeCropName((f.properties.crop||'').trim())).filter(c=>c&&getCropGroup(c).key==='その他'))].sort();
   otherCrops.forEach(cropName=>{
     const cnt=GJ.features.filter(f=>(f.properties.crop||'').trim()===cropName).length;
     const safeId='cgfc-other-'+cropName.replace(/\s+/g,'_').replace(/[^\w\u3040-\u9fff]/g,'X');
     const d=document.createElement('div');d.className='fopt';
     d.innerHTML='<div class="fchk" id="'+safeId+'"></div>'
       +'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#95a5a6;margin-right:4px;vertical-align:middle;"></span>'
-      +cropName+' <span style="color:#aaa">('+cnt+'枚)</span>';
+      +cleanCropName(cropName)+' <span style="color:#aaa">('+cnt+'枚)</span>';
     d.addEventListener('click',()=>toggleCrop(cropName,safeId,true));
     document.getElementById('crop-options').appendChild(d);
   });
@@ -133,9 +144,10 @@ function toggleCrop(key,safeId,isExact){
 }
 function cropMatchesFilter(cropName){
   if(selCrops.size===0)return true;
+  const normalized=normalizeCropName(cropName);
   for(const[key,isExact]of selCropMeta){
-    if(isExact){if(cropName===key)return true;}
-    else{if(getCropGroup(cropName).key===key)return true;}
+    if(isExact){if(normalized===key)return true;}
+    else{if(getCropGroup(normalized).key===key)return true;}
   }
   return false;
 }
@@ -269,7 +281,7 @@ function fieldColor(nm){
   const r=records[nm];
   if(mode==='crop'){
     const feat=GJ.features.find(f=>f.properties.name===nm);
-    return getCropGroup(feat?feat.properties.crop||'':'').color;
+    return getCropGroup(normalizeCropName(feat?feat.properties.crop||'':'')).color;
   }
   if(!r)return '#95a5a6';
   if(herbActive(r))return '#8e44ad';
@@ -290,7 +302,7 @@ function getLayerStyle(nm,feat){
   const cropHighlight=selCrops.size>0&&cropMatchesFilter(cropName);
   const isHighlighted=blockHighlight||cropHighlight||isSel;
   let opacity=0.75;
-  if(alertFilter){opacity=hasAlert(nm)?0.85:0.05;}
+  if(alertFilter){opacity=hasAlert(nm)?0.85:0;}
   else if(selBlocks.size>0||selCrops.size>0){opacity=isHighlighted?0.85:0.18;}
   if(isSel)opacity=0.85;
   let color='#fff',weight=0.8;
