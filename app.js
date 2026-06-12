@@ -806,8 +806,11 @@ document.addEventListener('DOMContentLoaded',()=>{
     setButtonLoading('edit-savebtn',true,'✏ 修正を保存');
     const nm=selField.properties.name.trim();const time=getSelectedTime();
     try{
-      await postToGAS({name:nm,status:selStatus,person:curUser,memo:'',time,correction:true,originalTime:editOrigTime});
+      await postToGAS({action:'edit',name:nm,status:selStatus,person:curUser,memo:'',time,originalTime:editOrigTime});
       records[nm]={status:selStatus,checkedOnly:false,person:curUser,memo:'',time};
+      // allHistの該当行を上書き（重複行ができない設計）
+      allHist=allHist.map(h=>(h[0]===nm&&Math.abs(new Date(h[4]).getTime()-new Date(editOrigTime).getTime())<1000)
+        ?[nm,selStatus,curUser,'',time]:h);
     }
     catch(e){alert('保存に失敗しました');setButtonLoading('edit-savebtn',false,'✏ 修正を保存');return;}
     setButtonLoading('edit-savebtn',false,'✏ 修正を保存');closePanel();renderMap();
