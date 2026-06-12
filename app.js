@@ -541,20 +541,6 @@ async function resolveMemo(nm){
   catch(e){alert('対応済みの保存に失敗しました');}
 }
 
-async function addMemoFromUI(){
-  if(!selField)return;
-  const input=document.getElementById('task-input');
-  const content=input.value.trim();if(!content)return;
-  const nm=selField.properties.name.trim();
-  if(!curUser){const n=prompt('担当者名を入力してください');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
-  const time=new Date().toISOString();
-  memoData[nm]={content,person:curUser,time};
-  memoHistAll.push([nm,content,curUser,time,'未対応','','']);
-  input.value='';updateMemoUI(nm);renderMap();updateSaveBtnState();
-  try{await postToGAS({action:'memo',name:nm,content,person:curUser});}
-  catch(e){alert('メモの保存に失敗しました');}
-}
-
 function updateSaveBtnState(){
   const btn=document.getElementById('savebtn');
   if(!btn||btn.style.display==='none')return;
@@ -722,9 +708,10 @@ document.addEventListener('DOMContentLoaded',()=>{
       setButtonLoading('savebtn',true);
       if(!curUser){const n=prompt('担当者名を入力してください');if(!n){setButtonLoading('savebtn',false,'記録する');return;}curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
       const time=getSelectedTime();const targets=[...multiSelected];
-      targets.forEach(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo:'',time};});
-      try{await postToGAS({action:'bulk',records:targets.map(nm=>({name:nm,status:records[nm].status,person:curUser,memo:'',time}))});}
-      catch(e){alert('保存に失敗しました');}
+      try{
+        await postToGAS({action:'bulk',records:targets.map(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;return{name:nm,status:newS,person:curUser,memo:'',time};})});
+        targets.forEach(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo:'',time};});
+      }catch(e){alert('保存に失敗しました');setButtonLoading('savebtn',false,'記録する');return;}
       setButtonLoading('savebtn',false,'記録する');clearMultiSelect();closePanel();renderMap();return;
     }
 
