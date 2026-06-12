@@ -195,7 +195,7 @@ function updateConfirmOnlyBtn(){
   const warn=document.getElementById('multi-warn-text');
   const hasUnrecorded=[...multiSelected].some(nm=>!records[nm]);
   btn.disabled=hasUnrecorded;
-  if(warn)warn.style.display=hasUnrecorded?'inline':'none';
+  if(warn)warn.style.display=hasUnrecorded?'block':'none';
 }
 async function bulkConfirmOnly(){
   if([...multiSelected].some(nm=>!records[nm]))return;
@@ -741,8 +741,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       const prev=records[nm];
       waterNewS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;
       payload.water={status:waterNewS,checkedOnly:selStatus==='確認のみ',memo:'',time};
-    }
-    if(pendingKusa)payload.kusa=pendingKusa;
+    }    if(pendingKusa)payload.kusa=pendingKusa;
     if(hasMemoToAdd)payload.memo={content:memoText};
 
     // 1回のPOSTで送信 → 成功後にローカル更新
@@ -750,8 +749,8 @@ document.addEventListener('DOMContentLoaded',()=>{
       await postToGAS(payload);
       // 成功確定後にローカル状態を更新
       if(waterNewS){
-        records[nm]={status:waterNewS,checkedOnly:!!payload.water.checkedOnly,person:curUser,memo:waterMemo,time};
-        allHist.push([nm,waterNewS,curUser,waterMemo,time]); // deleteRecord用に履歴にも追加
+        records[nm]={status:waterNewS,checkedOnly:!!payload.water.checkedOnly,person:curUser,memo:'',time};
+        allHist.push([nm,waterNewS,curUser,'',time]);
       }
       if(pendingKusa){
         if(pendingKusa==='要草刈り'){kusaData[nm]={status:'要草刈り',person:curUser,time:new Date().toISOString()};}

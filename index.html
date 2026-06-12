@@ -154,11 +154,13 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 <div id="stats">圃場 <b id="tc">-</b> 枚<br><span id="area-total"></span><br><span id="ac" style="color:#e74c3c"></span></div>
 
 <div id="multi-bar">
-  <button id="multi-clear-btn" onclick="clearMultiSelect()">✕ 解除</button>
-  <span id="multi-count">0枚選択中</span>
-  <span id="multi-warn-text" style="font-size:11px;color:#ffcccc;display:none;">未記録の圃場が含まれています</span>
-  <button id="multi-confirm-btn" onclick="bulkConfirmOnly()">✓ 確認のみ</button>
-  <button id="multi-record-btn" onclick="openMultiPanel()">一括記録</button>
+  <div id="multi-warn-text" style="display:none;width:100%;text-align:center;font-size:11px;color:#ffcccc;margin-bottom:2px;">※未記録の圃場が含まれています</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;">
+    <button id="multi-clear-btn" onclick="clearMultiSelect()">✕ 解除</button>
+    <span id="multi-count">0枚選択中</span>
+    <button id="multi-confirm-btn" onclick="bulkConfirmOnly()">✓ 確認のみ</button>
+    <button id="multi-record-btn" onclick="openMultiPanel()">一括記録</button>
+  </div>
 </div>
 
 <div id="overlay"></div>
