@@ -67,17 +67,28 @@ function initFilters(){
     d.addEventListener('click',()=>toggleBlock(c));
     document.getElementById('block-options').appendChild(d);
   });
-  // 品種フィルター：個別品種ごとに表示（「その他」まとめなし）
-  const allCrops=[...new Set(GJ.features.map(f=>(f.properties.crop||'').trim()).filter(Boolean))].sort();
-  allCrops.forEach(cropName=>{
+  // 品種フィルター：グループ単位（きぬむすめ/ZR1等）＋グループ外は個別表示
+  // CROP_GROUPS[0-5] をまず表示
+  CROP_GROUPS.slice(0,6).forEach(g=>{
+    const cnt=GJ.features.filter(f=>getCropGroup((f.properties.crop||'').trim()).key===g.key).length;
+    if(cnt===0)return;
+    const d=document.createElement('div');d.className='fopt';
+    d.innerHTML='<div class="fchk" id="cgfc-'+g.key+'"></div>'
+      +'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+g.color+';margin-right:4px;vertical-align:middle;"></span>'
+      +g.label+' <span style="color:#aaa">('+cnt+'枚)</span>';
+    d.addEventListener('click',()=>toggleCrop(g.key,'cgfc-'+g.key,false));
+    document.getElementById('crop-options').appendChild(d);
+  });
+  // 「その他」に入る品種は個別に表示
+  const otherCrops=[...new Set(GJ.features.map(f=>(f.properties.crop||'').trim()).filter(c=>c&&getCropGroup(c).key==='その他'))].sort();
+  otherCrops.forEach(cropName=>{
     const cnt=GJ.features.filter(f=>(f.properties.crop||'').trim()===cropName).length;
-    const grp=getCropGroup(cropName);
-    const safeId='cgfc-'+cropName.replace(/\s+/g,'_').replace(/[^\w\u3040-\u9fff]/g,'X');
+    const safeId='cgfc-other-'+cropName.replace(/\s+/g,'_').replace(/[^\w\u3040-\u9fff]/g,'X');
     const d=document.createElement('div');d.className='fopt';
     d.innerHTML='<div class="fchk" id="'+safeId+'"></div>'
-      +'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+grp.color+';margin-right:4px;vertical-align:middle;"></span>'
+      +'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#95a5a6;margin-right:4px;vertical-align:middle;"></span>'
       +cropName+' <span style="color:#aaa">('+cnt+'枚)</span>';
-    d.addEventListener('click',()=>toggleCrop(cropName,safeId));
+    d.addEventListener('click',()=>toggleCrop(cropName,safeId,true));
     document.getElementById('crop-options').appendChild(d);
   });
 }
@@ -105,17 +116,28 @@ function toggleBlock(c){
     if(feats.length>0){const g=L.geoJSON({type:'FeatureCollection',features:feats});map.fitBounds(g.getBounds().pad(0.1));}
   }
 }
-function toggleCrop(cropName,safeId){
-  selCrops.has(cropName)?selCrops.delete(cropName):selCrops.add(cropName);
-  const el=document.getElementById(safeId);if(el)el.classList.toggle('on',selCrops.has(cropName));
+// selCropMeta: groupキー or 個別品種名→isExact(bool)
+const selCropMeta=new Map();
+function toggleCrop(key,safeId,isExact){
+  if(selCrops.has(key)){selCrops.delete(key);selCropMeta.delete(key);}
+  else{selCrops.add(key);selCropMeta.set(key,!!isExact);}
+  const el=document.getElementById(safeId);if(el)el.classList.toggle('on',selCrops.has(key));
   const btn=document.getElementById('crop-toggle-btn');
-  btn.textContent=selCrops.size===0?'🌾 品種 ▾':[...selCrops].join('・')+' ▾';
+  btn.textContent=selCrops.size===0?'🌾 品種 ▾':[...selCrops].map(k=>{const g=CROP_GROUPS.find(x=>x.key===k);return g?g.label:k;}).join('・')+' ▾';
   btn.classList.toggle('filtered',selCrops.size>0);
   renderMap();
   if(selCrops.size>0){
-    const feats=GJ.features.filter(f=>selCrops.has((f.properties.crop||'').trim()));
+    const feats=GJ.features.filter(f=>cropMatchesFilter((f.properties.crop||'').trim()));
     if(feats.length>0){const g=L.geoJSON({type:'FeatureCollection',features:feats});map.fitBounds(g.getBounds().pad(0.1));}
   }
+}
+function cropMatchesFilter(cropName){
+  if(selCrops.size===0)return true;
+  for(const[key,isExact]of selCropMeta){
+    if(isExact){if(cropName===key)return true;}
+    else{if(getCropGroup(cropName).key===key)return true;}
+  }
+  return false;
 }
 function resetFilter(type){
   if(type==='block'){
@@ -125,7 +147,7 @@ function resetFilter(type){
     document.getElementById('block-toggle-btn').classList.remove('filtered');
     document.getElementById('block-menu').classList.remove('open');
   }else{
-    selCrops.clear();
+    selCrops.clear();selCropMeta.clear();
     document.querySelectorAll('[id^="cgfc-"]').forEach(el=>el.classList.remove('on'));
     document.getElementById('crop-toggle-btn').textContent='🌾 品種 ▾';
     document.getElementById('crop-toggle-btn').classList.remove('filtered');
@@ -267,7 +289,7 @@ function getLayerStyle(nm,feat){
   const blockCode=(feat.properties.field_id||'').replace(/-.*/, '');
   const cropName=(feat.properties.crop||'').trim();
   const blockHighlight=selBlocks.size>0&&selBlocks.has(blockCode);
-  const cropHighlight=selCrops.size>0&&selCrops.has(cropName);
+  const cropHighlight=selCrops.size>0&&cropMatchesFilter(cropName);
   const isHighlighted=blockHighlight||cropHighlight||isSel;
   let opacity=0.75;
   if(alertFilter){opacity=hasAlert(nm)?0.85:0.05;}
@@ -295,7 +317,7 @@ function renderMap(){
     const blockCode=(feat.properties.field_id||'').replace(/-.*/, '');
     const cropName=(feat.properties.crop||'').trim();
     const inBlock=selBlocks.size===0||selBlocks.has(blockCode);
-    const inCrop=selCrops.size===0||selCrops.has(cropName);
+    const inCrop=cropMatchesFilter(cropName);
     if(inBlock&&inCrop){filteredCount++;totalArea+=(parseFloat(feat.properties.area_a)||0);}
     if(hasAlert(nm)){
       try{
