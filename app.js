@@ -320,7 +320,12 @@ function openMultiPanel(){
       btn.disabled=true;btn.textContent='送信中...';
       try{
         await postToGAS({action:'memo_resolve_bulk',names:memoTargets,person:curUser});
-        memoTargets.forEach(nm=>{memoData[nm]=[];});
+        const resolvedTime=new Date().toISOString();
+        memoTargets.forEach(nm=>{
+          memoData[nm]=[];
+          memoHistAll=memoHistAll.map(h=>(h[0]===nm&&h[4]==='未対応')
+            ?[h[0],h[1],h[2],h[3],'対応済み',curUser,resolvedTime]:h);
+        });
       }catch(e){alert('メモ対応済みの保存に失敗しました');btn.disabled=false;btn.textContent='✅ メモ対応済み（選択圃場すべて）';return;}
       closePanel();clearMultiSelect();renderMap();
     });
@@ -340,9 +345,9 @@ function openMultiPanel(){
     if(!confirm(targets.length+'枚にメモを一括登録します'))return;
     if(!curUser){const n=prompt('担当者名');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
     memoBtn.disabled=true;memoBtn.textContent='送信中...';
+    const time=new Date().toISOString();
     try{
-      await postToGAS({action:'memo_bulk',names:targets,content,person:curUser});
-      const time=new Date().toISOString();
+      await postToGAS({action:'memo_bulk',names:targets,content,person:curUser,time});
       targets.forEach(nm=>{
         if(!memoData[nm])memoData[nm]=[];
         memoData[nm].push({content,person:curUser,time});
@@ -846,7 +851,15 @@ document.addEventListener('DOMContentLoaded',()=>{
       // 複数選択モード中は選択に追加するだけ
       const layer=layers[name];
       if(layer)map.fitBounds(layer.getBounds().pad(0.3));
-      toggleFieldSelect(name);return;
+      toggleFieldSelect(name);
+      // 一括パネルが開いていればタイトルを更新
+      if(document.getElementById('panel').classList.contains('open')&&selField===null){
+        const cnt=multiSelected.size;
+        document.getElementById('pt').textContent=cnt+'枚の一括記録';
+        const tgts=[...multiSelected];
+        document.getElementById('pm').textContent=tgts.slice(0,3).join('、')+(tgts.length>3?' 他'+(tgts.length-3)+'枚':'');
+      }
+      return;
     }
     const layer=layers[name];
     if(layer)map.fitBounds(layer.getBounds().pad(0.3));
