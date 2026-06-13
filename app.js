@@ -234,6 +234,12 @@ function toggleFieldSelect(nm){
   const feat=GJ.features.find(f=>f.properties.name===nm);
   const layer=layers[nm];
   if(layer)layer.setStyle(getLayerStyle(nm,feat));
+  // 一括パネルが開いている場合、地図タップでもタイトルを即時更新
+  if(document.getElementById('panel').classList.contains('open')&&selField===null){
+    document.getElementById('pt').textContent=cnt+'枚の一括記録';
+    const tgts=[...multiSelected];
+    document.getElementById('pm').textContent=tgts.slice(0,3).join('、')+(tgts.length>3?' 他'+(tgts.length-3)+'枚':'');
+  }
 }
 function updateConfirmOnlyBtn(){
   const btn=document.getElementById('multi-confirm-btn');
@@ -819,7 +825,6 @@ async function loadRecords(){
     if(r.memo&&typeof r.memo==='object')memoData=r.memo;
     if(r.memoHist&&Array.isArray(r.memoHist))memoHistAll=r.memoHist;
   }
-  Object.keys(records).forEach(nm=>{const rec=records[nm];if(rec&&rec.status==='除草剤投入'&&!herbActive(rec))records[nm]={...rec,status:'止水'};});
   renderMap();
   document.getElementById('last-update').textContent=new Date().toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'})+'更新';
 }
