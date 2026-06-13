@@ -69,7 +69,8 @@ let layers={},markers={};
 let map;
 // 未確定の変更（記録するボタンで確定）
 let pendingKusa=null;
-let editKeepMemo=''; // null | '要草刈り' | '解除'
+let editKeepMemo='';
+let bulkMemoInputRef=null; // null | '要草刈り' | '解除'
 
 async function init(){
   try{const r=await fetch('fields.geojson');GJ=await r.json();}
@@ -340,6 +341,7 @@ function openMultiPanel(){
   const memoInput=document.createElement('input');
   memoInput.type='text';memoInput.className='sub-input';
   memoInput.placeholder='選択圃場に同じメモを一括登録...';
+  bulkMemoInputRef=memoInput;
   const memoBtn=document.createElement('button');memoBtn.className='sub-btn';
   memoBtn.textContent='⚠️ 一括登録';
   memoBtn.style.cssText='white-space:nowrap;background:#fff8f0;border-color:#e67e22;color:#e67e22;font-weight:700;';
@@ -788,7 +790,7 @@ function toggleHist(){
 function closePanel(){
   document.getElementById('panel').classList.remove('open');
   document.getElementById('overlay').classList.remove('on');
-  exitEditMode();selField=null;pendingKusa=null;
+  exitEditMode();selField=null;pendingKusa=null;bulkMemoInputRef=null;
   document.getElementById('multi-banner').style.display='none';
   if(multiSelected.size>0)document.getElementById('multi-bar').style.display='flex';
 }
@@ -895,13 +897,24 @@ document.addEventListener('DOMContentLoaded',()=>{
 
     // 複数選択モード
     if(multiSelected.size>0&&selField===null){
-      if(!selStatus)return;
+      const bulkMemoText=bulkMemoInputRef?bulkMemoInputRef.value.trim():'';
+      if(!selStatus&&!bulkMemoText)return;
       setButtonLoading('savebtn',true);
       if(!curUser){const n=prompt('担当者名を入力してください');if(!n){setButtonLoading('savebtn',false,'記録する');return;}curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
       const time=getSelectedTime();const targets=[...multiSelected];
       try{
-        await postToGAS({action:'bulk',records:targets.map(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;return{name:nm,status:newS,person:curUser,memo:'',time};})});
-        targets.forEach(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo:'',time};allHist.push([nm,newS,curUser,'',time]);});
+        if(selStatus){
+          await postToGAS({action:'bulk',records:targets.map(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;return{name:nm,status:newS,person:curUser,memo:'',time};})});
+          targets.forEach(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo:'',time};allHist.push([nm,newS,curUser,'',time]);});
+        }
+        if(bulkMemoText){
+          await postToGAS({action:'memo_bulk',names:targets,content:bulkMemoText,person:curUser,time});
+          targets.forEach(nm=>{
+            if(!memoData[nm])memoData[nm]=[];
+            memoData[nm].push({content:bulkMemoText,person:curUser,time});
+            memoHistAll.push([nm,bulkMemoText,curUser,time,'未対応','','']);
+          });
+        }
       }catch(e){alert('保存に失敗しました');setButtonLoading('savebtn',false,'記録する');return;}
       setButtonLoading('savebtn',false,'記録する');clearMultiSelect();closePanel();renderMap();return;
     }
