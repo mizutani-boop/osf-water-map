@@ -59,7 +59,7 @@ function matchesAlertFilter(nm){
     if(alertFilters.has('kusa_mid')&&d>=3&&d<7)return true;
     if(alertFilters.has('kusa_old')&&d>=7)return true;
   }
-  if(alertFilters.has('memo')&&hasMemoAlert(nm))return true;
+  if(alertFilters.has('memo')&&memoData[nm]&&memoData[nm].length>0)return true;
   return false;
 }
 let curUser=localStorage.getItem('osf_user')||'';
@@ -314,19 +314,19 @@ function openMultiPanel(){
     btn.style.cssText='width:100%;padding:9px;background:#e67e22;color:#fff;border-color:#e67e22;font-weight:700;margin-bottom:6px;font-size:13px;border-radius:10px;';
     btn.textContent='✅ メモ対応済み（選択圃場すべて）';
     btn.addEventListener('click',async()=>{
-      const memoTargets=targets.filter(nm=>memoData[nm]);
+      const memoTargets=targets.filter(nm=>memoData[nm]&&memoData[nm].length>0);
       if(!confirm(memoTargets.length+'件のメモを対応済みにします'))return;
       if(!curUser){const n=prompt('担当者名');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
       btn.disabled=true;btn.textContent='送信中...';
       try{
         await postToGAS({action:'memo_resolve_bulk',names:memoTargets,person:curUser});
-        memoTargets.forEach(nm=>delete memoData[nm]);
+        memoTargets.forEach(nm=>{memoData[nm]=[];});
       }catch(e){alert('メモ対応済みの保存に失敗しました');btn.disabled=false;btn.textContent='✅ メモ対応済み（選択圃場すべて）';return;}
       closePanel();clearMultiSelect();renderMap();
     });
     bulkExtra.appendChild(btn);
   }
-  // メモ一括登録
+  // メモ一括登録（複数メモ対応：すべての選択圃場に追加可能）
   const memoWrap=document.createElement('div');
   memoWrap.style.cssText='display:flex;gap:6px;margin-bottom:6px;';
   const memoInput=document.createElement('input');
@@ -337,16 +337,15 @@ function openMultiPanel(){
   memoBtn.style.cssText='white-space:nowrap;background:#fff8f0;border-color:#e67e22;color:#e67e22;font-weight:700;';
   memoBtn.addEventListener('click',async()=>{
     const content=memoInput.value.trim();if(!content)return;
-    const noMemoTargets=targets.filter(nm=>!memoData[nm]);
-    if(noMemoTargets.length===0){alert('選択圃場すべてに既存のメモがあります');return;}
-    if(!confirm(noMemoTargets.length+'枚にメモを一括登録します'))return;
+    if(!confirm(targets.length+'枚にメモを一括登録します'))return;
     if(!curUser){const n=prompt('担当者名');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
     memoBtn.disabled=true;memoBtn.textContent='送信中...';
     try{
-      await postToGAS({action:'memo_bulk',names:noMemoTargets,content,person:curUser});
+      await postToGAS({action:'memo_bulk',names:targets,content,person:curUser});
       const time=new Date().toISOString();
-      noMemoTargets.forEach(nm=>{
-        memoData[nm]={content,person:curUser,time};
+      targets.forEach(nm=>{
+        if(!memoData[nm])memoData[nm]=[];
+        memoData[nm].push({content,person:curUser,time});
         memoHistAll.push([nm,content,curUser,time,'未対応','','']);
       });
     }catch(e){alert('メモ一括登録の保存に失敗しました');memoBtn.disabled=false;memoBtn.textContent='⚠️ 一括登録';return;}
@@ -386,7 +385,7 @@ function fieldColor(nm){
   return d<2?'#2ecc71':d<4?'#f39c12':'#e74c3c';
 }
 function hasKusaAlert(nm){return !!(kusaData[nm]);}
-function hasMemoAlert(nm){return !!(memoData[nm]);}
+function hasMemoAlert(nm){return !!(memoData[nm]&&memoData[nm].length>0);}
 function hasAlert(nm){return hasKusaAlert(nm)||hasMemoAlert(nm);}
 
 function getLayerStyle(nm,feat){
@@ -568,36 +567,53 @@ function updateMemoUI(nm){
   const list=document.getElementById('task-list');
   const inputRow=document.getElementById('task-input-row');
   if(!list)return;
-  const active=memoData[nm];
+  const actives=memoData[nm]||[];
   list.innerHTML='';
-
-  if(active){
-    // アクティブなメモを表示
-    const d=active.time?new Date(active.time):null;
-    const wrap=document.createElement('div');wrap.className='memo-active-wrap';
-    const text=document.createElement('div');text.className='memo-content';text.textContent=active.content;
-    const meta=document.createElement('div');meta.className='memo-meta';
-    meta.textContent=(d?d.toLocaleDateString('ja')+' '+d.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'})+' ':'')+(active.person||'');
+  // アクティブなメモを全件表示
+  actives.forEach(memo=>{
+    const d=memo.time?new Date(memo.time):null;
+    const wrap=document.createElement('div');wrap.className='memo-active-wrap';wrap.style.marginBottom='6px';
+    const contentDiv=document.createElement('div');contentDiv.className='memo-content';contentDiv.textContent=memo.content;
+    const metaDiv=document.createElement('div');metaDiv.className='memo-meta';
+    metaDiv.textContent=(d?d.toLocaleDateString('ja')+' '+d.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'})+' ':'')+(memo.person||'');
+    const btnRow=document.createElement('div');btnRow.style.cssText='display:flex;gap:6px;margin-top:6px;';
     const resolveBtn=document.createElement('button');resolveBtn.className='sub-btn memo-resolve-btn';
-    resolveBtn.textContent='✅ 対応済みにする';
-    resolveBtn.addEventListener('click',()=>resolveMemo(nm));
-    wrap.appendChild(text);wrap.appendChild(meta);wrap.appendChild(resolveBtn);
+    resolveBtn.textContent='✅ 対応済み';resolveBtn.style.cssText='flex:1;background:#27ae60;color:#fff;border-color:#27ae60;font-weight:700;padding:7px;';
+    resolveBtn.addEventListener('click',()=>resolveMemo(nm,memo.time));
+    const editBtn=document.createElement('button');editBtn.className='sub-btn';
+    editBtn.textContent='✏ 編集';editBtn.style.cssText='flex:1;padding:7px;';
+    editBtn.addEventListener('click',()=>{
+      contentDiv.style.display='none';editBtn.style.display='none';
+      const editInput=document.createElement('input');editInput.type='text';editInput.className='sub-input';
+      editInput.value=memo.content;editInput.style.cssText='width:100%;margin-bottom:4px;';
+      const saveBtn=document.createElement('button');saveBtn.className='sub-btn';
+      saveBtn.textContent='保存';saveBtn.style.cssText='flex:1;background:#2C4A1E;color:#fff;border-color:#2C4A1E;padding:7px;';
+      const cancelBtn=document.createElement('button');cancelBtn.className='sub-btn';
+      cancelBtn.textContent='キャンセル';cancelBtn.style.cssText='flex:1;padding:7px;';
+      saveBtn.addEventListener('click',async()=>{
+        const newContent=editInput.value.trim();if(!newContent)return;
+        await editMemo(nm,memo.time,newContent);
+      });
+      cancelBtn.addEventListener('click',()=>{
+        contentDiv.style.display='';editBtn.style.display='';
+        editInput.remove();saveBtn.remove();cancelBtn.remove();
+      });
+      wrap.insertBefore(editInput,metaDiv);
+      btnRow.appendChild(saveBtn);btnRow.appendChild(cancelBtn);
+    });
+    btnRow.appendChild(resolveBtn);btnRow.appendChild(editBtn);
+    wrap.appendChild(contentDiv);wrap.appendChild(metaDiv);wrap.appendChild(btnRow);
     list.appendChild(wrap);
-    // アクティブメモがある間はテキスト入力を非表示
-    if(inputRow)inputRow.style.display='none';
-  }else{
-    if(inputRow)inputRow.style.display='flex';
-  }
-
+  });
+  // 新規メモ入力欄は常に表示
+  if(inputRow)inputRow.style.display='flex';
   // メモ履歴
   const hist=memoHistAll.filter(h=>h[0]===nm);
   if(hist.length>0){
     const toggle=document.createElement('div');toggle.className='memo-hist-toggle';
     toggle.textContent='▶ メモ履歴（'+hist.length+'件）';
-    let open=false;
-    const histWrap=document.createElement('div');histWrap.style.display='none';
+    let open=false;const histWrap=document.createElement('div');histWrap.style.display='none';
     [...hist].reverse().forEach(h=>{
-      // h: [name, content, person, time, status, resolvedBy, resolvedTime]
       const row=document.createElement('div');row.className='memo-hist-row';
       const d=h[3]?new Date(h[3]):null;
       const dStr=d?d.toLocaleDateString('ja')+' '+d.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'}):'';
@@ -606,35 +622,44 @@ function updateMemoUI(nm){
         const rd=h[6]?new Date(h[6]):null;
         const rdStr=rd?rd.toLocaleDateString('ja')+' '+rd.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'}):'';
         html+='<br><span style="color:#27ae60">✅ 対応済：'+rdStr+' '+(h[5]||'')+'</span>';
-      }else if(h[4]==='未対応'){
-        html+='<br><span style="color:#e67e22">● 未対応</span>';
-      }
-      row.innerHTML=html;
-      histWrap.appendChild(row);
+      }else if(h[4]==='未対応'){html+='<br><span style="color:#e67e22">● 未対応</span>';}
+      row.innerHTML=html;histWrap.appendChild(row);
     });
     toggle.addEventListener('click',()=>{open=!open;histWrap.style.display=open?'block':'none';toggle.textContent=(open?'▼':'▶')+' メモ履歴（'+hist.length+'件）';});
     list.appendChild(toggle);list.appendChild(histWrap);
   }
 }
 
-async function resolveMemo(nm){
+async function resolveMemo(nm,memoTime){
   if(!curUser){const n=prompt('担当者名を入力してください');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
-  const prev=memoData[nm];if(!prev)return;
+  const memos=memoData[nm]||[];
+  const target=memos.find(m=>Math.abs(new Date(m.time).getTime()-new Date(memoTime).getTime())<1000);
+  if(!target)return;
   const resolvedTime=new Date().toISOString();
-  // ローカル更新
-  memoHistAll=memoHistAll.map(h=>(h[0]===nm&&h[1]===prev.content&&h[4]==='未対応')
+  memoHistAll=memoHistAll.map(h=>(h[0]===nm&&Math.abs(new Date(h[3]).getTime()-new Date(memoTime).getTime())<1000&&h[4]==='未対応')
     ?[h[0],h[1],h[2],h[3],'対応済み',curUser,resolvedTime]:h);
-  delete memoData[nm];
+  memoData[nm]=memos.filter(m=>Math.abs(new Date(m.time).getTime()-new Date(memoTime).getTime())>=1000);
   updateMemoUI(nm);renderMap();
-  try{await postToGAS({action:'memo_resolve',name:nm,person:curUser});}
+  try{await postToGAS({action:'memo_resolve',name:nm,person:curUser,memoTime});}
   catch(e){alert('対応済みの保存に失敗しました');}
+}
+
+async function editMemo(nm,memoTime,newContent){
+  memoData[nm]=(memoData[nm]||[]).map(m=>
+    Math.abs(new Date(m.time).getTime()-new Date(memoTime).getTime())<1000?{...m,content:newContent}:m);
+  memoHistAll=memoHistAll.map(h=>
+    (h[0]===nm&&Math.abs(new Date(h[3]).getTime()-new Date(memoTime).getTime())<1000&&h[4]==='未対応')
+    ?[h[0],newContent,h[2],h[3],h[4],h[5],h[6]]:h);
+  updateMemoUI(nm);
+  try{await postToGAS({action:'memo_edit',name:nm,person:curUser,memoTime,content:newContent});}
+  catch(e){alert('メモの編集に失敗しました');}
 }
 
 function updateSaveBtnState(){
   const btn=document.getElementById('savebtn');
   if(!btn||btn.style.display==='none')return;
   const memoInput=document.getElementById('task-input');
-  const hasMemoText=memoInput&&memoInput.value.trim().length>0&&!memoData[selField&&selField.properties.name.trim()];
+  const hasMemoText=memoInput&&memoInput.value.trim().length>0;
   btn.disabled=!(selStatus||pendingKusa||hasMemoText);
 }
 
@@ -786,10 +811,15 @@ document.addEventListener('DOMContentLoaded',()=>{
   // 圃場名検索
   const searchInput=document.getElementById('search-input');
   const searchResults=document.getElementById('search-results');
+  // 検索用正規化（全角→半角・大文字小文字統一）
+  function normalizeForSearch(str){
+    return str.replace(/[Ａ-Ｚａ-ｚ０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).toLowerCase();
+  }
   searchInput.addEventListener('input',()=>{
     const q=searchInput.value.trim();
     if(!q){searchResults.classList.remove('open');searchResults.innerHTML='';return;}
-    const hits=GJ?GJ.features.filter(f=>(f.properties.name||'').includes(q)).slice(0,10):[];
+    const qNorm=normalizeForSearch(q);
+    const hits=GJ?GJ.features.filter(f=>normalizeForSearch(f.properties.name||'').includes(qNorm)).slice(0,10):[];
     if(hits.length===0){
       searchResults.innerHTML='<div class="sres-item" style="color:#aaa;cursor:default;text-align:center;">✕ 一致する圃場がありません</div>';
       searchResults.classList.add('open');return;
@@ -832,8 +862,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('savebtn').addEventListener('click',async()=>{
     const memoInput=document.getElementById('task-input');
     const memoText=memoInput?memoInput.value.trim():'';
-    const hasActiveMemo=selField&&memoData[selField.properties.name.trim()];
-    const hasMemoToAdd=memoText&&!hasActiveMemo;
+    const hasMemoToAdd=memoText.length>0;
 
     if(!selStatus&&!pendingKusa&&!hasMemoToAdd){
       const ov=document.getElementById('overlay');ov.style.pointerEvents='none';
@@ -860,33 +889,34 @@ document.addEventListener('DOMContentLoaded',()=>{
 
     const nm=selField.properties.name.trim();
     const time=getSelectedTime();
+    const hasMemoToAdd=memoText.length>0;
 
-    // ペイロード構築（ローカル更新はまだしない）
-    const payload={action:'save',name:nm,person:curUser};
+    // ペイロード構築（timeを常に含める→草刈り・メモの日時連動）
+    const payload={action:'save',name:nm,person:curUser,time};
     let waterNewS=null;
     if(selStatus){
       const prev=records[nm];
       waterNewS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;
       payload.water={status:waterNewS,checkedOnly:selStatus==='確認のみ',memo:'',time};
-    }    if(pendingKusa)payload.kusa=pendingKusa;
+    }
+    if(pendingKusa)payload.kusa=pendingKusa;
     if(hasMemoToAdd)payload.memo={content:memoText};
 
     // 1回のPOSTで送信 → 成功後にローカル更新
     try{
       await postToGAS(payload);
-      // 成功確定後にローカル状態を更新
       if(waterNewS){
         records[nm]={status:waterNewS,checkedOnly:!!payload.water.checkedOnly,person:curUser,memo:'',time};
         allHist.push([nm,waterNewS,curUser,'',time]);
       }
       if(pendingKusa){
-        if(pendingKusa==='要草刈り'){kusaData[nm]={status:'要草刈り',person:curUser,time:new Date().toISOString()};}
+        if(pendingKusa==='要草刈り'){kusaData[nm]={status:'要草刈り',person:curUser,time};}
         else{delete kusaData[nm];}
       }
       if(hasMemoToAdd){
-        const memoTime=new Date().toISOString();
-        memoData[nm]={content:memoText,person:curUser,time:memoTime};
-        memoHistAll.push([nm,memoText,curUser,memoTime,'未対応','','']);
+        if(!memoData[nm])memoData[nm]=[];
+        memoData[nm].push({content:memoText,person:curUser,time});
+        memoHistAll.push([nm,memoText,curUser,time,'未対応','','']);
         if(memoInput)memoInput.value='';
       }
     }catch(e){
