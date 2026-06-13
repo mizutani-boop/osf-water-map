@@ -68,7 +68,8 @@ let multiMode=false,multiSelected=new Set();
 let layers={},markers={};
 let map;
 // 未確定の変更（記録するボタンで確定）
-let pendingKusa=null; // null | '要草刈り' | '解除'
+let pendingKusa=null;
+let editKeepMemo=''; // null | '要草刈り' | '解除'
 
 async function init(){
   try{const r=await fetch('fields.geojson');GJ=await r.json();}
@@ -752,6 +753,7 @@ function openPanel(feat){
 }
 
 function enterEditMode(origTime,origStatus,origMemo){
+  editKeepMemo=origMemo||'';
   editMode=true;editOrigTime=origTime;
   document.getElementById('panel').classList.add('edit-mode');
   document.getElementById('edit-banner').style.display='block';
@@ -952,11 +954,10 @@ document.addEventListener('DOMContentLoaded',()=>{
     setButtonLoading('edit-savebtn',true,'✏ 修正を保存');
     const nm=selField.properties.name.trim();const time=getSelectedTime();
     try{
-      await postToGAS({action:'edit',name:nm,status:selStatus,person:curUser,memo:'',time,originalTime:editOrigTime});
-      records[nm]={status:selStatus,checkedOnly:false,person:curUser,memo:'',time};
-      // allHistの該当行を上書き（重複行ができない設計）
+      await postToGAS({action:'edit',name:nm,status:selStatus,person:curUser,memo:editKeepMemo,time,originalTime:editOrigTime});
+      records[nm]={status:selStatus,checkedOnly:false,person:curUser,memo:editKeepMemo,time};
       allHist=allHist.map(h=>(h[0]===nm&&Math.abs(new Date(h[4]).getTime()-new Date(editOrigTime).getTime())<1000)
-        ?[nm,selStatus,curUser,'',time]:h);
+        ?[nm,selStatus,curUser,editKeepMemo,time]:h);
     }
     catch(e){alert('保存に失敗しました');setButtonLoading('edit-savebtn',false,'✏ 修正を保存');return;}
     setButtonLoading('edit-savebtn',false,'✏ 修正を保存');closePanel();renderMap();
