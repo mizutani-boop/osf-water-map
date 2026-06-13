@@ -290,9 +290,8 @@ function openMultiPanel(){
       const time=getSelectedTime();
       try{
         await postToGAS({action:'kusa_bulk',names:noKusaTargets,status:'要草刈り',person:curUser,time});
-        noKusaTargets.forEach(nm=>{kusaData[nm]={status:'要草刈り',person:curUser,time};});
       }catch(e){alert('草刈りアラート発令の保存に失敗しました');btn.disabled=false;btn.textContent='🌿 草刈りアラートを発令する（選択圃場すべて）';return;}
-      closePanel();clearMultiSelect();renderMap();
+      await loadRecords();closePanel();clearMultiSelect();
     });
     bulkExtra.appendChild(btn);
   }
@@ -308,9 +307,8 @@ function openMultiPanel(){
       const time=getSelectedTime();
       try{
         await postToGAS({action:'kusa_bulk',names:kusaTargets,status:'解除',person:curUser,time});
-        kusaTargets.forEach(nm=>delete kusaData[nm]);
       }catch(e){alert('草刈りアラート解除の保存に失敗しました');btn.disabled=false;btn.textContent='✅ 草刈りアラート解除（選択圃場すべて）';return;}
-      closePanel();clearMultiSelect();renderMap();
+      await loadRecords();closePanel();clearMultiSelect();
     });
     bulkExtra.appendChild(btn);
   }
@@ -919,8 +917,7 @@ document.addEventListener('DOMContentLoaded',()=>{
           await postToGAS({action:'memo_bulk',names:targets,content:bulkMemoText,person:curUser,time});
           bulkMemoSaved=true;
         }
-        // 全通信成功後：手動push廃止→loadRecordsで一撃同期（重複リスクゼロ）
-        // 全通信成功後：loadRecordsで一撃同期（手動records更新不要）
+        // 全通信成功後：loadRecordsで一撃同期
         await loadRecords();
         bulkStatusSaved=false;bulkMemoSaved=false;
       }catch(e){alert('保存に失敗しました。電波の良い場所で再度「記録する」を押してください。');setButtonLoading('savebtn',false,'記録する');return;}
@@ -945,23 +942,11 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(pendingKusa)payload.kusa=pendingKusa;
     if(hasMemoToAdd)payload.memo={content:memoText};
 
-    // 1回のPOSTで送信 → 成功後にローカル更新
+    // 1回のPOSTで送信 → 成功後はloadRecordsで一撃同期
     try{
       await postToGAS(payload);
-      if(waterNewS){
-        records[nm]={status:waterNewS,checkedOnly:!!payload.water.checkedOnly,person:curUser,memo:'',time};
-        allHist.push([nm,waterNewS,curUser,'',time]);
-      }
-      if(pendingKusa){
-        if(pendingKusa==='要草刈り'){kusaData[nm]={status:'要草刈り',person:curUser,time};}
-        else{delete kusaData[nm];}
-      }
-      if(hasMemoToAdd){
-        if(!memoData[nm])memoData[nm]=[];
-        memoData[nm].push({content:memoText,person:curUser,time});
-        memoHistAll.push([nm,memoText,curUser,time,'未対応','','']);
-        if(memoInput)memoInput.value='';
-      }
+      if(memoInput)memoInput.value='';
+      await loadRecords();
     }catch(e){
       alert('保存に失敗しました。電波状況を確認して再度お試しください。');
       setButtonLoading('savebtn',false,'記録する');return;
@@ -969,7 +954,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
     setButtonLoading('savebtn',false,'記録する');
     pendingKusa=null;
-    closePanel();renderMap();
+    closePanel();
   });
 
   document.getElementById('edit-savebtn').addEventListener('click',async()=>{
@@ -978,12 +963,10 @@ document.addEventListener('DOMContentLoaded',()=>{
     const nm=selField.properties.name.trim();const time=getSelectedTime();
     try{
       await postToGAS({action:'edit',name:nm,status:selStatus,person:curUser,memo:editKeepMemo,time,originalTime:editOrigTime});
-      records[nm]={status:selStatus,checkedOnly:false,person:curUser,memo:editKeepMemo,time};
-      allHist=allHist.map(h=>(h[0]===nm&&Math.abs(new Date(h[4]).getTime()-new Date(editOrigTime).getTime())<1000)
-        ?[nm,selStatus,curUser,editKeepMemo,time]:h);
+      await loadRecords();
     }
     catch(e){alert('保存に失敗しました');setButtonLoading('edit-savebtn',false,'✏ 修正を保存');return;}
-    setButtonLoading('edit-savebtn',false,'✏ 修正を保存');closePanel();renderMap();
+    setButtonLoading('edit-savebtn',false,'✏ 修正を保存');closePanel();
   });
   document.getElementById('overlay').addEventListener('click',()=>closePanel());
   document.getElementById('ulabel').textContent=curUser||'未設定';
