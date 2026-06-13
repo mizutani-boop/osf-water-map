@@ -73,7 +73,9 @@ let editKeepMemo='';
 let bulkMemoInputRef=null;
 let bulkStatusSaved=false;
 let bulkMemoSaved=false;
-let singleSaved=false; // null | '要草刈り' | '解除'
+let singleSaved=false;
+let bulkConfirmSaved=false;
+let bulkKusaSaved=false; // null | '要草刈り' | '解除'
 
 async function init(){
   try{const r=await fetch('fields.geojson');GJ=await r.json();}
@@ -216,7 +218,7 @@ function resetAlertFilter(){
 }
 function toggleMultiMode(){multiMode=!multiMode;document.getElementById('multi-btn').classList.toggle('active',multiMode);if(!multiMode)clearMultiSelect();}
 function clearMultiSelect(){
-  multiSelected.clear();multiMode=false;
+  multiSelected.clear();multiMode=false;bulkConfirmSaved=false;
   document.getElementById('multi-btn').classList.remove('active');
   document.getElementById('multi-bar').classList.remove('show');
   document.getElementById('multi-bar').style.display='';
@@ -255,9 +257,13 @@ async function bulkConfirmOnly(){
   if(!curUser){const n=prompt('担当者名を入力してください');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
   const time=new Date().toISOString();const targets=[...multiSelected];
   try{
-    await postToGAS({action:'bulk',records:targets.map(nm=>({name:nm,status:records[nm].status,person:curUser,memo:'',time}))});
+    if(!bulkConfirmSaved){
+      await postToGAS({action:'bulk',records:targets.map(nm=>({name:nm,status:records[nm].status,person:curUser,memo:'',time}))});
+      bulkConfirmSaved=true;
+    }
     await loadRecords();
-  }catch(e){alert('保存に失敗しました');return;}
+    bulkConfirmSaved=false;
+  }catch(e){alert('保存に失敗しました。電波の良い場所で再度「✓ 確認のみ」を押してください。');return;}
   clearMultiSelect();
 }
 
@@ -296,11 +302,14 @@ function openMultiPanel(){
       btn.disabled=true;btn.textContent='送信中...';
       const time=getSelectedTime();
       try{
-        await postToGAS({action:'kusa_bulk',names:noKusaTargets,status:'要草刈り',person:curUser,time});
+        if(!bulkKusaSaved){
+          await postToGAS({action:'kusa_bulk',names:noKusaTargets,status:'要草刈り',person:curUser,time});
+          bulkKusaSaved=true;
+        }
+        await loadRecords();
+        bulkKusaSaved=false;
+        btn.textContent='✅ 発令済み';btn.style.cssText='width:100%;padding:9px;background:#95a5a6;border:2px solid #95a5a6;color:#fff;font-weight:700;margin-bottom:6px;font-size:13px;border-radius:10px;';
       }catch(e){alert('草刈りアラート発令の保存に失敗しました');btn.disabled=false;btn.textContent='🌿 草刈りアラートを発令する（選択圃場すべて）';return;}
-      // GAS成功：パネル・選択状態を維持したまま同期（続けて水状態を記録できる）
-      await loadRecords();
-      btn.textContent='✅ 発令済み';btn.style.cssText='width:100%;padding:9px;background:#95a5a6;border:2px solid #95a5a6;color:#fff;font-weight:700;margin-bottom:6px;font-size:13px;border-radius:10px;';
     });
     bulkExtra.appendChild(btn);
   }
@@ -315,11 +324,14 @@ function openMultiPanel(){
       btn.disabled=true;btn.textContent='送信中...';
       const time=getSelectedTime();
       try{
-        await postToGAS({action:'kusa_bulk',names:kusaTargets,status:'解除',person:curUser,time});
+        if(!bulkKusaSaved){
+          await postToGAS({action:'kusa_bulk',names:kusaTargets,status:'解除',person:curUser,time});
+          bulkKusaSaved=true;
+        }
+        await loadRecords();
+        bulkKusaSaved=false;
+        btn.textContent='✅ 解除済み';btn.style.cssText='width:100%;padding:9px;background:#95a5a6;border:2px solid #95a5a6;color:#fff;font-weight:700;margin-bottom:6px;font-size:13px;border-radius:10px;';
       }catch(e){alert('草刈りアラート解除の保存に失敗しました');btn.disabled=false;btn.textContent='✅ 草刈りアラート解除（選択圃場すべて）';return;}
-      // GAS成功：パネル・選択状態を維持したまま同期
-      await loadRecords();
-      btn.textContent='✅ 解除済み';btn.style.cssText='width:100%;padding:9px;background:#95a5a6;border:2px solid #95a5a6;color:#fff;font-weight:700;margin-bottom:6px;font-size:13px;border-radius:10px;';
     });
     bulkExtra.appendChild(btn);
   }
@@ -804,7 +816,7 @@ function toggleHist(){
 function closePanel(){
   document.getElementById('panel').classList.remove('open');
   document.getElementById('overlay').classList.remove('on');
-  exitEditMode();selField=null;pendingKusa=null;singleSaved=false;
+  exitEditMode();selField=null;pendingKusa=null;singleSaved=false;bulkKusaSaved=false;
   if(bulkMemoInputRef){bulkMemoInputRef.value='';bulkMemoInputRef=null;}
   bulkStatusSaved=false;bulkMemoSaved=false;
   document.getElementById('multi-banner').style.display='none';
