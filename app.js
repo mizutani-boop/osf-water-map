@@ -291,7 +291,9 @@ function openMultiPanel(){
       try{
         await postToGAS({action:'kusa_bulk',names:noKusaTargets,status:'要草刈り',person:curUser,time});
       }catch(e){alert('草刈りアラート発令の保存に失敗しました');btn.disabled=false;btn.textContent='🌿 草刈りアラートを発令する（選択圃場すべて）';return;}
-      await loadRecords();closePanel();clearMultiSelect();
+      // GAS成功：パネル・選択状態を維持したまま同期（続けて水状態を記録できる）
+      await loadRecords();
+      btn.textContent='✅ 発令済み';btn.style.cssText='width:100%;padding:9px;background:#95a5a6;border:2px solid #95a5a6;color:#fff;font-weight:700;margin-bottom:6px;font-size:13px;border-radius:10px;';
     });
     bulkExtra.appendChild(btn);
   }
@@ -308,7 +310,9 @@ function openMultiPanel(){
       try{
         await postToGAS({action:'kusa_bulk',names:kusaTargets,status:'解除',person:curUser,time});
       }catch(e){alert('草刈りアラート解除の保存に失敗しました');btn.disabled=false;btn.textContent='✅ 草刈りアラート解除（選択圃場すべて）';return;}
-      await loadRecords();closePanel();clearMultiSelect();
+      // GAS成功：パネル・選択状態を維持したまま同期
+      await loadRecords();
+      btn.textContent='✅ 解除済み';btn.style.cssText='width:100%;padding:9px;background:#95a5a6;border:2px solid #95a5a6;color:#fff;font-weight:700;margin-bottom:6px;font-size:13px;border-radius:10px;';
     });
     bulkExtra.appendChild(btn);
   }
@@ -652,22 +656,15 @@ async function resolveMemo(nm,memoTime){
   if(!target)return;
   try{
     await postToGAS({action:'memo_resolve',name:nm,person:curUser,memoTime});
-    const resolvedTime=new Date().toISOString();
-    memoHistAll=memoHistAll.map(h=>(h[0]===nm&&Math.abs(new Date(h[3]).getTime()-new Date(memoTime).getTime())<1000&&h[4]==='未対応')
-      ?[h[0],h[1],h[2],h[3],'対応済み',curUser,resolvedTime]:h);
-    memoData[nm]=memos.filter(m=>Math.abs(new Date(m.time).getTime()-new Date(memoTime).getTime())>=1000);
-    updateMemoUI(nm);renderMap();
+    await loadRecords();
+    updateMemoUI(nm);
   }catch(e){alert('対応済みの保存に失敗しました。電波の良い場所で再度お試しください。');}
 }
 
 async function editMemo(nm,memoTime,newContent){
   try{
     await postToGAS({action:'memo_edit',name:nm,person:curUser,memoTime,content:newContent});
-    memoData[nm]=(memoData[nm]||[]).map(m=>
-      Math.abs(new Date(m.time).getTime()-new Date(memoTime).getTime())<1000?{...m,content:newContent}:m);
-    memoHistAll=memoHistAll.map(h=>
-      (h[0]===nm&&Math.abs(new Date(h[3]).getTime()-new Date(memoTime).getTime())<1000&&h[4]==='未対応')
-      ?[h[0],newContent,h[2],h[3],h[4],h[5],h[6]]:h);
+    await loadRecords();
     updateMemoUI(nm);
   }catch(e){alert('メモの編集に失敗しました。電波の良い場所で再度お試しください。');}
 }
