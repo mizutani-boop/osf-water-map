@@ -584,7 +584,9 @@ function updateMemoUI(nm){
     const btnRow=document.createElement('div');btnRow.style.cssText='display:flex;gap:6px;margin-top:6px;';
     const resolveBtn=document.createElement('button');resolveBtn.className='sub-btn memo-resolve-btn';
     resolveBtn.textContent='✅ 対応済み';resolveBtn.style.cssText='flex:1;background:#27ae60;color:#fff;border-color:#27ae60;font-weight:700;padding:7px;';
-    resolveBtn.addEventListener('click',()=>resolveMemo(nm,memo.time));
+    resolveBtn.addEventListener('click',()=>{
+      if(confirm('「'+memo.content+'」\nを対応済みにします。よろしいですか？'))resolveMemo(nm,memo.time);
+    });
     const editBtn=document.createElement('button');editBtn.className='sub-btn';
     editBtn.textContent='✏ 編集';editBtn.style.cssText='font-size:11px;padding:5px 10px;color:#888;border-color:#ddd;background:#fafafa;';
     editBtn.addEventListener('click',()=>{
