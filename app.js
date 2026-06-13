@@ -354,13 +354,13 @@ function openMultiPanel(){
     memoBtn.disabled=true;memoBtn.textContent='送信中...';
     const time=new Date().toISOString();
     try{
-      await postToGAS({action:'memo_bulk',names:targets,content,person:curUser,time});
-      targets.forEach(nm=>{
-        if(!memoData[nm])memoData[nm]=[];
-        memoData[nm].push({content,person:curUser,time});
-        memoHistAll.push([nm,content,curUser,time,'未対応','','']);
-      });
-    }catch(e){alert('メモ一括登録の保存に失敗しました');memoBtn.disabled=false;memoBtn.textContent='⚠️ 一括登録';return;}
+      if(!bulkMemoSaved){
+        await postToGAS({action:'memo_bulk',names:targets,content,person:curUser,time});
+        bulkMemoSaved=true;
+      }
+      bulkMemoSaved=false;
+      await loadRecords();
+    }catch(e){alert('メモ一括登録の保存に失敗しました。電波の良い場所で再度お試しください。');memoBtn.disabled=false;memoBtn.textContent='⚠️ 一括登録';return;}
     closePanel();clearMultiSelect();renderMap();
   });
   memoWrap.appendChild(memoInput);memoWrap.appendChild(memoBtn);
@@ -917,18 +917,12 @@ document.addEventListener('DOMContentLoaded',()=>{
           await postToGAS({action:'memo_bulk',names:targets,content:bulkMemoText,person:curUser,time});
           bulkMemoSaved=true;
         }
-        // 全通信成功後にローカル更新
+        // 全通信成功後：手動push廃止→loadRecordsで一撃同期（重複リスクゼロ）
         if(selStatus){
-          targets.forEach(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo:'',time};allHist.push([nm,newS,curUser,'',time]);});
-        }
-        if(bulkMemoText){
-          targets.forEach(nm=>{
-            if(!memoData[nm])memoData[nm]=[];
-            memoData[nm].push({content:bulkMemoText,person:curUser,time});
-            memoHistAll.push([nm,bulkMemoText,curUser,time,'未対応','','']);
-          });
+          targets.forEach(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo:'',time};});
         }
         bulkStatusSaved=false;bulkMemoSaved=false;
+        await loadRecords();
       }catch(e){alert('保存に失敗しました。電波の良い場所で再度「記録する」を押してください。');setButtonLoading('savebtn',false,'記録する');return;}
       setButtonLoading('savebtn',false,'記録する');clearMultiSelect();closePanel();renderMap();return;
     }
