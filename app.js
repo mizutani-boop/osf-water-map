@@ -588,7 +588,7 @@ function updateMemoUI(nm){
       const editInput=document.createElement('input');editInput.type='text';editInput.className='sub-input';
       editInput.value=memo.content;editInput.style.cssText='width:100%;margin-bottom:4px;';
       const saveBtn=document.createElement('button');saveBtn.className='sub-btn';
-      saveBtn.textContent='保存';saveBtn.style.cssText='flex:1;background:#2C4A1E;color:#fff;border-color:#2C4A1E;padding:7px;';
+      saveBtn.textContent='保存して確定';saveBtn.style.cssText='flex:1;background:#2C4A1E;color:#fff;border-color:#2C4A1E;padding:7px;';
       const cancelBtn=document.createElement('button');cancelBtn.className='sub-btn';
       cancelBtn.textContent='キャンセル';cancelBtn.style.cssText='flex:1;padding:7px;';
       saveBtn.addEventListener('click',async()=>{
