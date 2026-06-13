@@ -344,6 +344,7 @@ function openMultiPanel(){
   memoInput.type='text';memoInput.className='sub-input';
   memoInput.placeholder='選択圃場に同じメモを一括登録...';
   bulkMemoInputRef=memoInput;
+  memoInput.addEventListener('input',updateSaveBtnState);
   const memoBtn=document.createElement('button');memoBtn.className='sub-btn';
   memoBtn.textContent='⚠️ 一括登録';
   memoBtn.style.cssText='white-space:nowrap;background:#fff8f0;border-color:#e67e22;color:#e67e22;font-weight:700;';
@@ -678,7 +679,8 @@ function updateSaveBtnState(){
   if(!btn||btn.style.display==='none')return;
   const memoInput=document.getElementById('task-input');
   const hasMemoText=memoInput&&memoInput.value.trim().length>0;
-  btn.disabled=!(selStatus||pendingKusa||hasMemoText);
+  const hasBulkMemo=bulkMemoInputRef&&bulkMemoInputRef.value.trim().length>0;
+  btn.disabled=!(selStatus||pendingKusa||hasMemoText||hasBulkMemo);
 }
 
 // ============================================================
@@ -918,9 +920,7 @@ document.addEventListener('DOMContentLoaded',()=>{
           bulkMemoSaved=true;
         }
         // 全通信成功後：手動push廃止→loadRecordsで一撃同期（重複リスクゼロ）
-        if(selStatus){
-          targets.forEach(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo:'',time};});
-        }
+        // 全通信成功後：loadRecordsで一撃同期（手動records更新不要）
         await loadRecords();
         bulkStatusSaved=false;bulkMemoSaved=false;
       }catch(e){alert('保存に失敗しました。電波の良い場所で再度「記録する」を押してください。');setButtonLoading('savebtn',false,'記録する');return;}
