@@ -358,8 +358,8 @@ function openMultiPanel(){
         await postToGAS({action:'memo_bulk',names:targets,content,person:curUser,time});
         bulkMemoSaved=true;
       }
-      bulkMemoSaved=false;
       await loadRecords();
+      bulkMemoSaved=false;
     }catch(e){alert('メモ一括登録の保存に失敗しました。電波の良い場所で再度お試しください。');memoBtn.disabled=false;memoBtn.textContent='⚠️ 一括登録';return;}
     closePanel();clearMultiSelect();renderMap();
   });
@@ -921,8 +921,8 @@ document.addEventListener('DOMContentLoaded',()=>{
         if(selStatus){
           targets.forEach(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo:'',time};});
         }
-        bulkStatusSaved=false;bulkMemoSaved=false;
         await loadRecords();
+        bulkStatusSaved=false;bulkMemoSaved=false;
       }catch(e){alert('保存に失敗しました。電波の良い場所で再度「記録する」を押してください。');setButtonLoading('savebtn',false,'記録する');return;}
       setButtonLoading('savebtn',false,'記録する');clearMultiSelect();closePanel();renderMap();return;
     }
