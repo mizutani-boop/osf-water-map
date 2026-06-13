@@ -183,7 +183,11 @@ function clearMultiSelect(){
 function toggleFieldSelect(nm){
   multiSelected.has(nm)?multiSelected.delete(nm):multiSelected.add(nm);
   const cnt=multiSelected.size;
-  document.getElementById('multi-count').textContent=cnt+'枚選択中';
+  const area=[...multiSelected].reduce((sum,n)=>{
+    const feat=GJ.features.find(f=>f.properties.name===n);
+    return sum+(parseFloat(feat&&feat.properties.area_a)||0);
+  },0);
+  document.getElementById('multi-count').textContent=cnt+'枚 / 計'+area.toFixed(1)+'a';
   document.getElementById('multi-bar').classList.toggle('show',cnt>0);
   updateConfirmOnlyBtn();
   const feat=GJ.features.find(f=>f.properties.name===nm);
