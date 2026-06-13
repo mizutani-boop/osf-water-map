@@ -72,7 +72,8 @@ let pendingKusa=null;
 let editKeepMemo='';
 let bulkMemoInputRef=null;
 let bulkStatusSaved=false;
-let bulkMemoSaved=false; // null | '要草刈り' | '解除'
+let bulkMemoSaved=false;
+let singleSaved=false; // null | '要草刈り' | '解除'
 
 async function init(){
   try{const r=await fetch('fields.geojson');GJ=await r.json();}
@@ -401,6 +402,12 @@ function fieldColor(nm){
   }
   if(!r)return '#95a5a6';
   if(herbActive(r))return '#8e44ad';
+  // 除草剤72時間経過：statusモードは止水色、dateモードは通常の日数計算
+  if(r.status==='除草剤投入'){
+    if(mode==='status')return S_COL['止水']||'#e67e22';
+    const d=(Date.now()-new Date(r.time).getTime())/86400000;
+    return d<2?'#2ecc71':d<4?'#f39c12':'#e74c3c';
+  }
   if(mode==='status')return S_COL[r.status]||'#95a5a6';
   const d=(Date.now()-new Date(r.time).getTime())/86400000;
   return d<2?'#2ecc71':d<4?'#f39c12':'#e74c3c';
@@ -480,7 +487,9 @@ function updateSummary(){
     const r=records[f.properties.name];
     if(!r){unr++;return;}
     if(herbActive(r)){cnt['除草剤投入中']=(cnt['除草剤投入中']||0)+1;return;}
-    cnt[r.status]=(cnt[r.status]||0)+1;
+    // 除草剤72時間経過：止水として集計
+    const status=r.status==='除草剤投入'?'止水':r.status;
+    cnt[status]=(cnt[status]||0)+1;
   });
   const d4=Object.values(records).filter(r=>!herbActive(r)&&(Date.now()-new Date(r.time).getTime())/86400000>=4).length;
   const items=[
@@ -795,7 +804,7 @@ function toggleHist(){
 function closePanel(){
   document.getElementById('panel').classList.remove('open');
   document.getElementById('overlay').classList.remove('on');
-  exitEditMode();selField=null;pendingKusa=null;
+  exitEditMode();selField=null;pendingKusa=null;singleSaved=false;
   if(bulkMemoInputRef){bulkMemoInputRef.value='';bulkMemoInputRef=null;}
   bulkStatusSaved=false;bulkMemoSaved=false;
   document.getElementById('multi-banner').style.display='none';
@@ -946,7 +955,10 @@ document.addEventListener('DOMContentLoaded',()=>{
 
     // 1回のPOSTで送信 → 成功後はloadRecordsで一撃同期
     try{
-      await postToGAS(payload);
+      if(!singleSaved){
+        await postToGAS(payload);
+        singleSaved=true;
+      }
       if(memoInput)memoInput.value='';
       await loadRecords();
     }catch(e){
