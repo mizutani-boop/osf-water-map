@@ -242,6 +242,7 @@ function toggleFieldSelect(nm){
     document.getElementById('pt').textContent=cnt+'枚の一括記録';
     const tgts=[...multiSelected];
     document.getElementById('pm').textContent=tgts.slice(0,3).join('、')+(tgts.length>3?' 他'+(tgts.length-3)+'枚':'');
+    updateConfirmOnlyBtn();
   }
 }
 function updateConfirmOnlyBtn(){
@@ -308,7 +309,8 @@ function openMultiPanel(){
         }
         await loadRecords();
         bulkKusaSaved=false;
-        btn.textContent='✅ 発令済み';btn.style.cssText='width:100%;padding:9px;background:#95a5a6;border:2px solid #95a5a6;color:#fff;font-weight:700;margin-bottom:6px;font-size:13px;border-radius:10px;';
+        btn.disabled=true;
+        btn.textContent='✅ 発令済み';btn.style.cssText='width:100%;padding:9px;background:#95a5a6;border:2px solid #95a5a6;color:#fff;font-weight:700;margin-bottom:6px;font-size:13px;border-radius:10px;cursor:not-allowed;';
       }catch(e){alert('草刈りアラート発令の保存に失敗しました');btn.disabled=false;btn.textContent='🌿 草刈りアラートを発令する（選択圃場すべて）';return;}
     });
     bulkExtra.appendChild(btn);
@@ -330,7 +332,8 @@ function openMultiPanel(){
         }
         await loadRecords();
         bulkKusaSaved=false;
-        btn.textContent='✅ 解除済み';btn.style.cssText='width:100%;padding:9px;background:#95a5a6;border:2px solid #95a5a6;color:#fff;font-weight:700;margin-bottom:6px;font-size:13px;border-radius:10px;';
+        btn.disabled=true;
+        btn.textContent='✅ 解除済み';btn.style.cssText='width:100%;padding:9px;background:#95a5a6;border:2px solid #95a5a6;color:#fff;font-weight:700;margin-bottom:6px;font-size:13px;border-radius:10px;cursor:not-allowed;';
       }catch(e){alert('草刈りアラート解除の保存に失敗しました');btn.disabled=false;btn.textContent='✅ 草刈りアラート解除（選択圃場すべて）';return;}
     });
     bulkExtra.appendChild(btn);
