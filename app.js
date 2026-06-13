@@ -425,7 +425,7 @@ function renderMap(){
     const inBlock=selBlocks.size===0||selBlocks.has(blockCode);
     const inCrop=cropMatchesFilter(cropName);
     if(inBlock&&inCrop){filteredCount++;totalArea+=(parseFloat(feat.properties.area_a)||0);}
-    if(hasAlert(nm)){
+    if(hasAlert(nm)&&(alertFilters.size===0||matchesAlertFilter(nm))){
       try{
         const bounds=L.geoJSON(feat).getBounds();
         if(!bounds.isValid())return;
