@@ -22,6 +22,16 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 .sum-item{display:flex;align-items:center;gap:4px;white-space:nowrap;padding:3px 8px;border-radius:10px;background:#f5f5f5;}
 .sum-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 .sum-num{font-weight:700;font-size:13px;}
+#search-wrap{position:fixed;top:78px;left:10px;z-index:998;}
+#search-input{padding:6px 12px;border:1.5px solid #2C4A1E;border-radius:14px;font-size:12px;width:160px;background:rgba(255,255,255,0.96);color:#333;box-shadow:0 2px 6px rgba(0,0,0,0.15);}
+#search-input::placeholder{color:#aaa;}
+#search-results{display:none;position:absolute;left:0;top:36px;background:#fff;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.18);min-width:200px;max-height:50vh;overflow-y:auto;z-index:999;}
+#search-results.open{display:block;}
+.sres-item{padding:9px 14px;font-size:12px;cursor:pointer;color:#333;border-bottom:1px solid #f0f0f0;}
+.sres-item:last-child{border-bottom:none;}
+.sres-item:active{background:#f5f5f5;}
+.sres-name{font-weight:700;}
+.sres-sub{font-size:10px;color:#888;margin-top:1px;}
 #filter-wrap{position:fixed;top:78px;right:10px;z-index:998;}
 #crop-wrap{position:fixed;top:118px;right:10px;z-index:997;}
 #alert-filter-btn{position:fixed;top:158px;right:10px;z-index:996;padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #e74c3c;border-radius:14px;font-size:12px;font-weight:600;color:#e74c3c;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;}
@@ -43,13 +53,15 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 .leg-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;}
 #stats{position:fixed;bottom:76px;left:10px;background:rgba(255,255,255,0.96);border-radius:10px;padding:8px 12px;z-index:994;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,0.18);}
 #stats b{font-size:15px;color:#1a1a2e;}
-#multi-bar{display:none;position:fixed;bottom:0;left:0;right:0;z-index:1002;background:#2C4A1E;padding:10px 16px;flex-direction:row;align-items:center;justify-content:space-between;gap:8px;}
+#multi-bar{display:none;position:fixed;bottom:0;left:0;right:0;z-index:1002;background:#2C4A1E;padding:8px 10px;flex-direction:column;align-items:stretch;}
 #multi-bar.show{display:flex;}
-#multi-count{color:#fff;font-size:13px;font-weight:700;flex:1;text-align:center;}
-#multi-clear-btn{padding:8px 12px;background:rgba(255,255,255,0.2);color:#fff;border:none;border-radius:10px;font-size:12px;cursor:pointer;flex-shrink:0;}
-#multi-confirm-btn{padding:8px 14px;background:#27ae60;color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;}
-#multi-confirm-btn:disabled{background:#666;cursor:not-allowed;}
-#multi-record-btn{padding:8px 14px;background:#f39c12;color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;}
+#multi-warn-text{display:none;width:100%;text-align:center;font-size:11px;color:#ffcccc;margin-bottom:4px;}
+#multi-bar-btns{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;}
+#multi-count{color:#fff;font-size:12px;font-weight:700;flex-shrink:0;}
+#multi-clear-btn{padding:7px 10px;background:rgba(255,255,255,0.2);color:#fff;border:none;border-radius:8px;font-size:11px;cursor:pointer;flex-shrink:0;}
+#multi-confirm-btn{padding:7px 10px;background:#27ae60;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;}
+#multi-confirm-btn:disabled{background:#555;cursor:not-allowed;}
+#multi-record-btn{padding:7px 10px;background:#f39c12;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;}
 #panel{position:fixed;bottom:0;left:0;right:0;background:#fff;border-radius:16px 16px 0 0;padding:16px;z-index:1001;transform:translateY(100%);transition:transform 0.28s ease;max-height:80vh;overflow-y:auto;}
 #panel.open{transform:translateY(0);}
 #panel.edit-mode{background:#fff8f8;border-top:4px solid #c0392b;}
@@ -96,7 +108,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 .sbtn{padding:10px 4px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;text-align:center;}
 .sbtn.sel{border-color:var(--c);background:color-mix(in srgb,var(--c) 11%,white);color:var(--c);}
 .sbtn:disabled{background:#f5f5f5;color:#bbb;border-color:#e0e0e0;cursor:not-allowed;}
-.s入水{--c:#3498db}.sちょい入れ{--c:#5dade2}.s止水{--c:#e67e22}.s中干し{--c:#e74c3c}.s水尻外し{--c:#a04000}.s除草剤投入{--c:#8e44ad}.s確認のみ{--c:#95a5a6}
+.s入水{--c:#3498db}.sちょい入れ{--c:#1abc9c}.s止水{--c:#e67e22}.s中干し{--c:#e74c3c}.s水尻外し{--c:#a04000}.s除草剤投入{--c:#8e44ad}.s確認のみ{--c:#95a5a6}
 #time-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;color:#666;}
 #time-row label{flex-shrink:0;}
 .tsel{flex:1;padding:7px 8px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:13px;background:#fff;color:#333;}
@@ -133,6 +145,11 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 </div>
 <div id="summary"></div>
 
+<div id="search-wrap">
+  <input id="search-input" type="text" placeholder="🔍 圃場名を検索...">
+  <div id="search-results"></div>
+</div>
+
 <div id="filter-wrap">
   <button class="filter-toggle" id="block-toggle-btn" onclick="toggleDropdown('block')">🗂 ブロック ▾</button>
   <div class="filter-dropdown" id="block-menu">
@@ -147,17 +164,44 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
     <div class="filter-reset" onclick="resetFilter('crop')">✕ すべて表示にリセット</div>
   </div>
 </div>
-<button id="alert-filter-btn" onclick="toggleAlertFilter()">🚨 アラートのみ</button>
+<div id="alert-wrap" style="position:fixed;top:158px;right:10px;z-index:996;">
+  <button class="filter-toggle" id="alert-toggle-btn" onclick="toggleDropdown('alert')">🚨 アラート ▾</button>
+  <div class="filter-dropdown" id="alert-menu">
+    <div class="fopt" onclick="toggleAlertFilter('kusa_new')">
+      <div class="fchk" id="afc-kusa_new"></div>
+      <span style="background:#27ae60;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;margin-right:4px;flex-shrink:0">🌿</span>
+      草刈り（3日未満）
+    </div>
+    <div class="fopt" onclick="toggleAlertFilter('kusa_mid')">
+      <div class="fchk" id="afc-kusa_mid"></div>
+      <span style="background:#e67e22;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;margin-right:4px;flex-shrink:0">🌿</span>
+      草刈り（3〜7日）
+    </div>
+    <div class="fopt" onclick="toggleAlertFilter('kusa_old')">
+      <div class="fchk" id="afc-kusa_old"></div>
+      <span style="background:#e74c3c;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;margin-right:4px;flex-shrink:0">🌿</span>
+      草刈り（7日以上）
+    </div>
+    <div class="fopt" onclick="toggleAlertFilter('memo')">
+      <div class="fchk" id="afc-memo"></div>
+      <span style="margin-right:4px">⚠️</span>メモあり
+    </div>
+    <div class="filter-reset" onclick="resetAlertFilter()">✕ すべて表示にリセット</div>
+  </div>
+</div>
 <button id="multi-btn" onclick="toggleMultiMode()">☑ 複数選択</button>
 
 <div id="legend"></div>
 <div id="stats">圃場 <b id="tc">-</b> 枚<br><span id="area-total"></span><br><span id="ac" style="color:#e74c3c"></span></div>
 
 <div id="multi-bar">
-  <button id="multi-clear-btn" onclick="clearMultiSelect()">✕ 解除</button>
-  <span id="multi-count">0枚選択中</span>
-  <button id="multi-confirm-btn" onclick="bulkConfirmOnly()">✓ 確認のみ</button>
-  <button id="multi-record-btn" onclick="openMultiPanel()">一括記録</button>
+  <div id="multi-warn-text">※未記録の圃場が含まれています</div>
+  <div id="multi-bar-btns">
+    <button id="multi-clear-btn" onclick="clearMultiSelect()">✕ 解除</button>
+    <span id="multi-count">0枚選択中</span>
+    <button id="multi-confirm-btn" onclick="bulkConfirmOnly()">✓ 確認のみ</button>
+    <button id="multi-record-btn" onclick="openMultiPanel()">一括記録</button>
+  </div>
 </div>
 
 <div id="overlay"></div>
@@ -178,9 +222,9 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 
   <!-- メモセクション -->
   <div class="sub-section" id="task-section">
-    <div class="sub-section-title">⚠️ メモ</div>
+    <div class="sub-section-title">⚠️ チームへの連絡・不具合報告<span style="font-size:10px;font-weight:400;color:#aaa;margin-left:6px;">（地図にアイコンが残ります）</span></div>
     <div class="sub-row" id="task-input-row">
-      <input class="sub-input" id="task-input" type="text" placeholder="メモを入力（記録するボタンで保存）">
+      <input class="sub-input" id="task-input" type="text" placeholder="例：漏水あり、イノシシの跡あり、水口が詰まっている等">
     </div>
     <div id="task-list" style="margin-top:6px;"></div>
   </div>
@@ -197,7 +241,6 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
     </select>
     <select class="tsel" id="sel-hour"></select>
   </div>
-  <textarea id="memo" rows="2" placeholder="水管理メモ（任意）"></textarea>
   <button id="savebtn" disabled>記録する</button>
   <button id="edit-savebtn">✏ 修正を保存</button>
   <button id="cancel-edit-btn" onclick="exitEditMode()">✕ 修正をキャンセル</button>
