@@ -70,7 +70,9 @@ let map;
 // 未確定の変更（記録するボタンで確定）
 let pendingKusa=null;
 let editKeepMemo='';
-let bulkMemoInputRef=null; // null | '要草刈り' | '解除'
+let bulkMemoInputRef=null;
+let bulkStatusSaved=false;
+let bulkMemoSaved=false; // null | '要草刈り' | '解除'
 
 async function init(){
   try{const r=await fetch('fields.geojson');GJ=await r.json();}
@@ -792,6 +794,7 @@ function closePanel(){
   document.getElementById('overlay').classList.remove('on');
   exitEditMode();selField=null;pendingKusa=null;
   if(bulkMemoInputRef){bulkMemoInputRef.value='';bulkMemoInputRef=null;}
+  bulkStatusSaved=false;bulkMemoSaved=false;
   document.getElementById('multi-banner').style.display='none';
   if(multiSelected.size>0)document.getElementById('multi-bar').style.display='flex';
 }
@@ -904,12 +907,15 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(!curUser){const n=prompt('担当者名を入力してください');if(!n){setButtonLoading('savebtn',false,'記録する');return;}curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
       const time=getSelectedTime();const targets=[...multiSelected];
       // 通信をすべて先に実行→両方成功後にローカル更新（二重登録防止）
+      // リトライ時は成功済みの通信をスキップ
       try{
-        if(selStatus){
+        if(selStatus&&!bulkStatusSaved){
           await postToGAS({action:'bulk',records:targets.map(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;return{name:nm,status:newS,person:curUser,memo:'',time};})});
+          bulkStatusSaved=true;
         }
-        if(bulkMemoText){
+        if(bulkMemoText&&!bulkMemoSaved){
           await postToGAS({action:'memo_bulk',names:targets,content:bulkMemoText,person:curUser,time});
+          bulkMemoSaved=true;
         }
         // 全通信成功後にローカル更新
         if(selStatus){
@@ -922,7 +928,8 @@ document.addEventListener('DOMContentLoaded',()=>{
             memoHistAll.push([nm,bulkMemoText,curUser,time,'未対応','','']);
           });
         }
-      }catch(e){alert('保存に失敗しました');setButtonLoading('savebtn',false,'記録する');return;}
+        bulkStatusSaved=false;bulkMemoSaved=false;
+      }catch(e){alert('保存に失敗しました。電波の良い場所で再度「記録する」を押してください。');setButtonLoading('savebtn',false,'記録する');return;}
       setButtonLoading('savebtn',false,'記録する');clearMultiSelect();closePanel();renderMap();return;
     }
 
