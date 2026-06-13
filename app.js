@@ -584,6 +584,7 @@ function updateMemoUI(nm){
     editBtn.textContent='✏ 編集';editBtn.style.cssText='font-size:11px;padding:5px 10px;color:#888;border-color:#ddd;background:#fafafa;';
     editBtn.addEventListener('click',()=>{
       contentDiv.style.display='none';editBtn.style.display='none';
+      resolveBtn.style.display='none'; // 編集中は対応済みボタンを非表示
       const editInput=document.createElement('input');editInput.type='text';editInput.className='sub-input';
       editInput.value=memo.content;editInput.style.cssText='width:100%;margin-bottom:4px;';
       const saveBtn=document.createElement('button');saveBtn.className='sub-btn';
@@ -596,6 +597,7 @@ function updateMemoUI(nm){
       });
       cancelBtn.addEventListener('click',()=>{
         contentDiv.style.display='';editBtn.style.display='';
+        resolveBtn.style.display=''; // キャンセル時に対応済みボタンを再表示
         editInput.remove();saveBtn.remove();cancelBtn.remove();
       });
       wrap.insertBefore(editInput,metaDiv);
