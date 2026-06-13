@@ -889,7 +889,6 @@ document.addEventListener('DOMContentLoaded',()=>{
 
     const nm=selField.properties.name.trim();
     const time=getSelectedTime();
-    const hasMemoToAdd=memoText.length>0;
 
     // ペイロード構築（timeを常に含める→草刈り・メモの日時連動）
     const payload={action:'save',name:nm,person:curUser,time};
