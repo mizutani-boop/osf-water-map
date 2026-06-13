@@ -284,9 +284,9 @@ function openMultiPanel(){
       if(!confirm(noKusaTargets.length+'枚に草刈りアラートを発令します'))return;
       if(!curUser){const n=prompt('担当者名');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
       btn.disabled=true;btn.textContent='送信中...';
+      const time=getSelectedTime();
       try{
-        await postToGAS({action:'kusa_bulk',names:noKusaTargets,status:'要草刈り',person:curUser});
-        const time=new Date().toISOString();
+        await postToGAS({action:'kusa_bulk',names:noKusaTargets,status:'要草刈り',person:curUser,time});
         noKusaTargets.forEach(nm=>{kusaData[nm]={status:'要草刈り',person:curUser,time};});
       }catch(e){alert('草刈りアラート発令の保存に失敗しました');btn.disabled=false;btn.textContent='🌿 草刈りアラートを発令する（選択圃場すべて）';return;}
       closePanel();clearMultiSelect();renderMap();
@@ -302,8 +302,9 @@ function openMultiPanel(){
       if(!confirm(kusaTargets.length+'枚の草刈りアラートを解除します'))return;
       if(!curUser){const n=prompt('担当者名');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
       btn.disabled=true;btn.textContent='送信中...';
+      const time=getSelectedTime();
       try{
-        await postToGAS({action:'kusa_bulk',names:kusaTargets,status:'解除',person:curUser});
+        await postToGAS({action:'kusa_bulk',names:kusaTargets,status:'解除',person:curUser,time});
         kusaTargets.forEach(nm=>delete kusaData[nm]);
       }catch(e){alert('草刈りアラート解除の保存に失敗しました');btn.disabled=false;btn.textContent='✅ 草刈りアラート解除（選択圃場すべて）';return;}
       closePanel();clearMultiSelect();renderMap();
@@ -316,7 +317,8 @@ function openMultiPanel(){
     btn.textContent='✅ メモ対応済み（選択圃場すべて）';
     btn.addEventListener('click',async()=>{
       const memoTargets=targets.filter(nm=>memoData[nm]&&memoData[nm].length>0);
-      if(!confirm(memoTargets.length+'件のメモを対応済みにします'))return;
+      const totalMemoCount=memoTargets.reduce((sum,nm)=>sum+(memoData[nm]||[]).length,0);
+      if(!confirm(totalMemoCount+'件のメモを対応済みにします（'+memoTargets.length+'枚分）'))return;
       if(!curUser){const n=prompt('担当者名');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
       btn.disabled=true;btn.textContent='送信中...';
       try{
