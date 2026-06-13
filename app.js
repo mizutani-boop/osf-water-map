@@ -790,7 +790,8 @@ function toggleHist(){
 function closePanel(){
   document.getElementById('panel').classList.remove('open');
   document.getElementById('overlay').classList.remove('on');
-  exitEditMode();selField=null;pendingKusa=null;bulkMemoInputRef=null;
+  exitEditMode();selField=null;pendingKusa=null;
+  if(bulkMemoInputRef){bulkMemoInputRef.value='';bulkMemoInputRef=null;}
   document.getElementById('multi-banner').style.display='none';
   if(multiSelected.size>0)document.getElementById('multi-bar').style.display='flex';
 }
@@ -902,13 +903,19 @@ document.addEventListener('DOMContentLoaded',()=>{
       setButtonLoading('savebtn',true);
       if(!curUser){const n=prompt('担当者名を入力してください');if(!n){setButtonLoading('savebtn',false,'記録する');return;}curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
       const time=getSelectedTime();const targets=[...multiSelected];
+      // 通信をすべて先に実行→両方成功後にローカル更新（二重登録防止）
       try{
         if(selStatus){
           await postToGAS({action:'bulk',records:targets.map(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;return{name:nm,status:newS,person:curUser,memo:'',time};})});
-          targets.forEach(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo:'',time};allHist.push([nm,newS,curUser,'',time]);});
         }
         if(bulkMemoText){
           await postToGAS({action:'memo_bulk',names:targets,content:bulkMemoText,person:curUser,time});
+        }
+        // 全通信成功後にローカル更新
+        if(selStatus){
+          targets.forEach(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;records[nm]={status:newS,checkedOnly:selStatus==='確認のみ',person:curUser,memo:'',time};allHist.push([nm,newS,curUser,'',time]);});
+        }
+        if(bulkMemoText){
           targets.forEach(nm=>{
             if(!memoData[nm])memoData[nm]=[];
             memoData[nm].push({content:bulkMemoText,person:curUser,time});
