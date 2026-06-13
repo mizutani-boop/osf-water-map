@@ -644,24 +644,26 @@ async function resolveMemo(nm,memoTime){
   const memos=memoData[nm]||[];
   const target=memos.find(m=>Math.abs(new Date(m.time).getTime()-new Date(memoTime).getTime())<1000);
   if(!target)return;
-  const resolvedTime=new Date().toISOString();
-  memoHistAll=memoHistAll.map(h=>(h[0]===nm&&Math.abs(new Date(h[3]).getTime()-new Date(memoTime).getTime())<1000&&h[4]==='未対応')
-    ?[h[0],h[1],h[2],h[3],'対応済み',curUser,resolvedTime]:h);
-  memoData[nm]=memos.filter(m=>Math.abs(new Date(m.time).getTime()-new Date(memoTime).getTime())>=1000);
-  updateMemoUI(nm);renderMap();
-  try{await postToGAS({action:'memo_resolve',name:nm,person:curUser,memoTime});}
-  catch(e){alert('対応済みの保存に失敗しました');}
+  try{
+    await postToGAS({action:'memo_resolve',name:nm,person:curUser,memoTime});
+    const resolvedTime=new Date().toISOString();
+    memoHistAll=memoHistAll.map(h=>(h[0]===nm&&Math.abs(new Date(h[3]).getTime()-new Date(memoTime).getTime())<1000&&h[4]==='未対応')
+      ?[h[0],h[1],h[2],h[3],'対応済み',curUser,resolvedTime]:h);
+    memoData[nm]=memos.filter(m=>Math.abs(new Date(m.time).getTime()-new Date(memoTime).getTime())>=1000);
+    updateMemoUI(nm);renderMap();
+  }catch(e){alert('対応済みの保存に失敗しました。電波の良い場所で再度お試しください。');}
 }
 
 async function editMemo(nm,memoTime,newContent){
-  memoData[nm]=(memoData[nm]||[]).map(m=>
-    Math.abs(new Date(m.time).getTime()-new Date(memoTime).getTime())<1000?{...m,content:newContent}:m);
-  memoHistAll=memoHistAll.map(h=>
-    (h[0]===nm&&Math.abs(new Date(h[3]).getTime()-new Date(memoTime).getTime())<1000&&h[4]==='未対応')
-    ?[h[0],newContent,h[2],h[3],h[4],h[5],h[6]]:h);
-  updateMemoUI(nm);
-  try{await postToGAS({action:'memo_edit',name:nm,person:curUser,memoTime,content:newContent});}
-  catch(e){alert('メモの編集に失敗しました');}
+  try{
+    await postToGAS({action:'memo_edit',name:nm,person:curUser,memoTime,content:newContent});
+    memoData[nm]=(memoData[nm]||[]).map(m=>
+      Math.abs(new Date(m.time).getTime()-new Date(memoTime).getTime())<1000?{...m,content:newContent}:m);
+    memoHistAll=memoHistAll.map(h=>
+      (h[0]===nm&&Math.abs(new Date(h[3]).getTime()-new Date(memoTime).getTime())<1000&&h[4]==='未対応')
+      ?[h[0],newContent,h[2],h[3],h[4],h[5],h[6]]:h);
+    updateMemoUI(nm);
+  }catch(e){alert('メモの編集に失敗しました。電波の良い場所で再度お試しください。');}
 }
 
 function updateSaveBtnState(){
