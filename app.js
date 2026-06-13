@@ -249,9 +249,9 @@ async function bulkConfirmOnly(){
   const time=new Date().toISOString();const targets=[...multiSelected];
   try{
     await postToGAS({action:'bulk',records:targets.map(nm=>({name:nm,status:records[nm].status,person:curUser,memo:'',time}))});
-    targets.forEach(nm=>{const prev=records[nm];records[nm]={...prev,checkedOnly:true,person:curUser,time};allHist.push([nm,prev.status,curUser,'',time]);});
+    await loadRecords();
   }catch(e){alert('保存に失敗しました');return;}
-  clearMultiSelect();renderMap();
+  clearMultiSelect();
 }
 
 function openMultiPanel(){
