@@ -412,7 +412,7 @@ function openMultiPanel(){
   memoInput.type='text';memoInput.className='sub-input';
   memoInput.placeholder='選択圃場に同じメモを一括登録...';
   bulkMemoInputRef=memoInput;
-  memoInput.addEventListener('input',updateSaveBtnState);
+  memoInput.addEventListener('input',()=>{bulkMemoSaved=false;updateSaveBtnState();});
   const memoBtn=document.createElement('button');memoBtn.className='sub-btn';
   memoBtn.textContent='⚠️ 一括登録';
   memoBtn.style.cssText='white-space:nowrap;background:#fff8f0;border-color:#e67e22;color:#e67e22;font-weight:700;';
@@ -439,7 +439,7 @@ function openMultiPanel(){
   S_OPTS.forEach(s=>{
     const b=document.createElement('button');b.className='sbtn s'+s;b.textContent=s;
     if(s==='確認のみ'&&hasUnrecorded){b.disabled=true;}
-    else{b.addEventListener('click',()=>{document.querySelectorAll('.sbtn').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');selStatus=s;updateSaveBtnState();});}
+    else{b.addEventListener('click',()=>{bulkStatusSaved=false;document.querySelectorAll('.sbtn').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');selStatus=s;updateSaveBtnState();});}
     sg.appendChild(b);
   });
   initTimeSelector(0,new Date().getHours());
@@ -674,6 +674,7 @@ function updateMemoUI(nm){
       cancelBtn.textContent='キャンセル';cancelBtn.style.cssText='flex:1;padding:7px;';
       saveBtn.addEventListener('click',async()=>{
         const newContent=editInput.value.trim();if(!newContent)return;
+        saveBtn.disabled=true;saveBtn.textContent='送信中...';
         await editMemo(nm,memo.time,newContent);
       });
       cancelBtn.addEventListener('click',()=>{
@@ -772,7 +773,7 @@ function openPanel(feat){
       if(s!=='確認のみ'&&herbActive(r)){
         if(!confirm('現在除草剤投入中（あと'+herbRemain(r)+'）です。\n本当に状態を上書きしますか？')){return;}
       }
-      document.querySelectorAll('.sbtn').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');selStatus=s;updateSaveBtnState();
+      document.querySelectorAll('.sbtn').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');selStatus=s;singleSaved=false;updateSaveBtnState();
     });}
     sg.appendChild(b);
   });
@@ -848,7 +849,7 @@ function closePanel(){
   document.getElementById('overlay').classList.remove('on');
   exitEditMode();selField=null;pendingKusa=null;singleSaved=false;bulkKusaSaved=false;
   if(bulkMemoInputRef){bulkMemoInputRef.value='';bulkMemoInputRef=null;}
-  bulkStatusSaved=false;bulkMemoSaved=false;
+  bulkStatusSaved=false;bulkMemoSaved=false;bulkConfirmSaved=false;
   document.getElementById('multi-banner').style.display='none';
   if(multiSelected.size>0)document.getElementById('multi-bar').style.display='flex';
 }
@@ -935,7 +936,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
   });
 
-  document.getElementById('task-input').addEventListener('input',updateSaveBtnState);
+  document.getElementById('task-input').addEventListener('input',()=>{singleSaved=false;updateSaveBtnState();});
 
   document.getElementById('savebtn').addEventListener('click',async()=>{
     const memoInput=document.getElementById('task-input');
