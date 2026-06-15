@@ -1,4 +1,4 @@
-// OSF Water Management App v5
+// OSF Water Management App v6 (performance optimized)
 const GAS='https://script.google.com/macros/s/AKfycbwcV7O5APU32iUPODpt6UOl_M-7_FavWZjGKaFfwaHYLLj4QU0w07UjZv7dt0s-6zqy/exec';
 const BM={"AR":"有富","NK":"中村","SS":"篠坂","KM":"北村","NI":"西今在家","SB":"菖蒲","FM":"古海","MD":"本高","BB":"馬場","HT":"服部","KR":"高路","TN":"徳尾","YG":"山が鼻","AJ":"味野"};
 const S_OPTS=['入水','ちょい入れ','止水','中干し','水尻外し','除草剤投入','確認のみ'];
@@ -22,7 +22,6 @@ function getCropGroup(crop){
   for(let i=0;i<6;i++){if(crop.includes(CROP_GROUPS[i].key))return CROP_GROUPS[i];}
   return CROP_GROUPS[6];
 }
-// 品種名から年号を除去（例：「26年きぬむすめ」→「きぬむすめ」）
 function normalizeCropName(crop){
   if(!crop)return '';
   return crop
@@ -30,27 +29,27 @@ function normalizeCropName(crop){
     .replace(/^\d{2}年度?[\s　]*/,'')
     .trim();
 }
-
-// 品種名から年号プレフィックスを除去（例：「26年～きぬむすめ」→「きぬむすめ」）
 function cleanCropName(name) {
   return name.replace(/^(令和|平成|昭和)?\d+年[産～~]?\s*/,'').trim() || name;
 }
+
 let records={},allHist=[],kusaData={},memoData={},memoHistAll=[];
 let mode='date',selBlocks=new Set(),selCrops=new Set(),alertFilters=new Set();
-// alertFilters: 'kusa_new'(3日未満), 'kusa_mid'(3-7日), 'kusa_old'(7日以上), 'memo'
 
-// 草刈りアラートの経過日数
+// ============================================================
+// [NEW] O(1)インデックス: name → feature
+// ============================================================
+let fieldFeatureMap=new Map();
+
 function getKusaDays(nm){
   const k=kusaData[nm];if(!k||!k.time)return 0;
   return (Date.now()-new Date(k.time).getTime())/86400000;
 }
-// 草刈りアイコンHTML（経過日数で色変化）
 function getKusaIconHtml(nm){
   const d=getKusaDays(nm);
   const bg=d>=7?'#e74c3c':d>=3?'#e67e22':'#27ae60';
   return '<span style="background:'+bg+';border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;box-shadow:0 1px 3px rgba(0,0,0,0.4)">🌿</span>';
 }
-// アラートフィルターマッチング
 function matchesAlertFilter(nm){
   if(alertFilters.size===0)return true;
   if(hasKusaAlert(nm)){
@@ -62,12 +61,12 @@ function matchesAlertFilter(nm){
   if(alertFilters.has('memo')&&memoData[nm]&&memoData[nm].length>0)return true;
   return false;
 }
+
 let curUser=localStorage.getItem('osf_user')||'';
 let selField=null,selStatus=null,histOpen=false,editMode=false,editOrigTime=null;
 let multiMode=false,multiSelected=new Set();
 let layers={},markers={};
 let map;
-// 未確定の変更（記録するボタンで確定）
 let pendingKusa=null;
 let editKeepMemo='';
 let bulkMemoInputRef=null;
@@ -75,18 +74,39 @@ let bulkStatusSaved=false;
 let bulkMemoSaved=false;
 let singleSaved=false;
 let bulkConfirmSaved=false;
-let bulkKusaSaved=false; // null | '要草刈り' | '解除'
+let bulkKusaSaved=false;
+
+// ============================================================
+// [NEW] デバウンス
+// ============================================================
+let renderTimer=null;
+function debouncedRenderMap(){
+  clearTimeout(renderTimer);
+  renderTimer=setTimeout(renderMap,50);
+}
 
 async function init(){
   try{const r=await fetch('fields.geojson');GJ=await r.json();}
   catch(e){document.getElementById('loading').textContent='圃場データの読み込みに失敗しました';return;}
   document.getElementById('loading').style.display='none';
-  initMap();initFilters();updateLegend();renderMap();loadRecords();
+
+  // [NEW] O(1)インデックス構築
+  GJ.features.forEach(f=>fieldFeatureMap.set(f.properties.name.trim(),f));
+
+  initMap();
+  initFilters();
+  updateLegend();
+
+  // [NEW] 初回1回だけレイヤー・マーカーを生成
+  buildLayers();
+
+  loadRecords();
   setInterval(loadRecords,60000);
 }
 
 function initMap(){
-  map=L.map('map',{zoomControl:false}).setView([35.465,134.19],13);
+  // [NEW] Canvas レンダラー追加（SVG→Canvas で380枚が1枚の画像として描画）
+  map=L.map('map',{zoomControl:false,renderer:L.canvas()}).setView([35.465,134.19],13);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CARTO',maxZoom:19,crossOrigin:true}).addTo(map);
   L.control.zoom({position:'bottomright'}).addTo(map);
   const locCtrl=L.control({position:'bottomright'});
@@ -101,8 +121,35 @@ function initMap(){
   map.on('locationerror',()=>alert('現在地を取得できませんでした'));
 }
 
+// ============================================================
+// [NEW] buildLayers: 初回1回だけ全圃場のレイヤー・マーカーを生成
+// ============================================================
+function buildLayers(){
+  GJ.features.forEach(feat=>{
+    const nm=feat.properties.name.trim();
+
+    // レイヤー生成（クリックイベントもここで1回バインド）
+    const layer=L.geoJSON(feat,{
+      style:{color:'#fff',weight:0.8,fillColor:'#95a5a6',fillOpacity:0.75}
+    }).on('click',()=>multiMode?toggleFieldSelect(nm):openPanel(feat)).addTo(map);
+    layers[nm]=layer;
+
+    // マーカー生成（初期は map に addTo しない＝浮かせた状態）
+    try{
+      const bounds=L.geoJSON(feat).getBounds();
+      if(bounds.isValid()){
+        const center=bounds.getCenter();
+        const mk=L.marker(center,{
+          icon:L.divIcon({className:'',html:'',iconSize:[44,22],iconAnchor:[22,11]}),
+          interactive:false
+        });
+        markers[nm]=mk;
+      }
+    }catch(e){}
+  });
+}
+
 function initFilters(){
-  // ブロックフィルター
   const blockCodes=[...new Set(GJ.features.map(f=>(f.properties.field_id||'').replace(/-.*/, '')).filter(c=>c&&BM[c]))].sort();
   blockCodes.forEach(c=>{
     const d=document.createElement('div');d.className='fopt';
@@ -110,8 +157,6 @@ function initFilters(){
     d.addEventListener('click',()=>toggleBlock(c));
     document.getElementById('block-options').appendChild(d);
   });
-  // 品種フィルター：グループ単位（きぬむすめ/ZR1等）＋グループ外は個別表示
-  // 品種名は年号を除去して正規化
   CROP_GROUPS.slice(0,6).forEach(g=>{
     const cnt=GJ.features.filter(f=>getCropGroup(normalizeCropName((f.properties.crop||'').trim())).key===g.key).length;
     if(cnt===0)return;
@@ -122,7 +167,6 @@ function initFilters(){
     d.addEventListener('click',()=>toggleCrop(g.key,'cgfc-'+g.key,false));
     document.getElementById('crop-options').appendChild(d);
   });
-  // 「その他」に入る品種は個別に表示（正規化後の名前で）
   const otherCrops=[...new Set(GJ.features.map(f=>normalizeCropName((f.properties.crop||'').trim())).filter(c=>c&&getCropGroup(c).key==='その他'))].sort();
   otherCrops.forEach(cropName=>{
     const cnt=GJ.features.filter(f=>normalizeCropName((f.properties.crop||'').trim())===cropName).length;
@@ -154,13 +198,13 @@ function toggleBlock(c){
   const btn=document.getElementById('block-toggle-btn');
   btn.textContent=selBlocks.size===0?'🗂 ブロック ▾':[...selBlocks].map(x=>BM[x]).join('・')+' ▾';
   btn.classList.toggle('filtered',selBlocks.size>0);
-  renderMap();
+  // [NEW] デバウンス経由
+  debouncedRenderMap();
   if(selBlocks.size>0){
     const feats=GJ.features.filter(f=>selBlocks.has((f.properties.field_id||'').replace(/-.*/, '')));
     if(feats.length>0){const g=L.geoJSON({type:'FeatureCollection',features:feats});map.fitBounds(g.getBounds().pad(0.1));}
   }
 }
-// selCropMeta: groupキー or 個別品種名→isExact(bool)
 const selCropMeta=new Map();
 function toggleCrop(key,safeId,isExact){
   if(selCrops.has(key)){selCrops.delete(key);selCropMeta.delete(key);}
@@ -169,7 +213,8 @@ function toggleCrop(key,safeId,isExact){
   const btn=document.getElementById('crop-toggle-btn');
   btn.textContent=selCrops.size===0?'🌾 品種 ▾':[...selCrops].map(k=>{const g=CROP_GROUPS.find(x=>x.key===k);return g?g.label:k;}).join('・')+' ▾';
   btn.classList.toggle('filtered',selCrops.size>0);
-  renderMap();
+  // [NEW] デバウンス経由
+  debouncedRenderMap();
   if(selCrops.size>0){
     const feats=GJ.features.filter(f=>cropMatchesFilter((f.properties.crop||'').trim()));
     if(feats.length>0){const g=L.geoJSON({type:'FeatureCollection',features:feats});map.fitBounds(g.getBounds().pad(0.1));}
@@ -228,16 +273,17 @@ function toggleFieldSelect(nm){
   multiSelected.has(nm)?multiSelected.delete(nm):multiSelected.add(nm);
   const cnt=multiSelected.size;
   const area=[...multiSelected].reduce((sum,n)=>{
-    const feat=GJ.features.find(f=>f.properties.name===n);
+    // [NEW] find() → fieldFeatureMap.get()
+    const feat=fieldFeatureMap.get(n);
     return sum+(parseFloat(feat&&feat.properties.area_a)||0);
   },0);
   document.getElementById('multi-count').textContent=cnt+'枚 / 計'+area.toFixed(1)+'a';
   document.getElementById('multi-bar').classList.toggle('show',cnt>0);
   updateConfirmOnlyBtn();
-  const feat=GJ.features.find(f=>f.properties.name===nm);
+  // [NEW] setStyle のみ（再生成なし）
+  const feat=fieldFeatureMap.get(nm);
   const layer=layers[nm];
   if(layer)layer.setStyle(getLayerStyle(nm,feat));
-  // 一括パネルが開いている場合、地図タップでもタイトルを即時更新
   if(document.getElementById('panel').classList.contains('open')&&selField===null){
     document.getElementById('pt').textContent=cnt+'枚の一括記録';
     const tgts=[...multiSelected];
@@ -287,7 +333,6 @@ function openMultiPanel(){
   document.getElementById('kusa-section').style.display='none';
   document.getElementById('task-section').style.display='none';
   const bulkExtra=document.getElementById('bulk-extra');bulkExtra.innerHTML='';
-  // 一括適用の注意書き
   const bulkNotice=document.createElement('div');
   bulkNotice.style.cssText='font-size:11px;color:#856404;background:#fff3cd;border:1px solid #f39c12;border-radius:8px;padding:6px 10px;margin-bottom:8px;';
   bulkNotice.textContent='※ 選択した状態・日時はすべての圃場に一括で記録されます';
@@ -361,7 +406,6 @@ function openMultiPanel(){
     });
     bulkExtra.appendChild(btn);
   }
-  // メモ一括登録（複数メモ対応：すべての選択圃場に追加可能）
   const memoWrap=document.createElement('div');
   memoWrap.style.cssText='display:flex;gap:6px;margin-bottom:6px;';
   const memoInput=document.createElement('input');
@@ -412,12 +456,12 @@ function herbRemain(rec){const h=72-(Date.now()-new Date(rec.time).getTime())/36
 function fieldColor(nm){
   const r=records[nm];
   if(mode==='crop'){
-    const feat=GJ.features.find(f=>f.properties.name===nm);
+    // [NEW] find() → fieldFeatureMap.get()
+    const feat=fieldFeatureMap.get(nm);
     return getCropGroup(normalizeCropName(feat?feat.properties.crop||'':'')).color;
   }
   if(!r)return '#95a5a6';
   if(herbActive(r))return '#8e44ad';
-  // 除草剤72時間経過：statusモードは止水色、dateモードは通常の日数計算
   if(r.status==='除草剤投入'){
     if(mode==='status')return S_COL['止水']||'#e67e22';
     const d=(Date.now()-new Date(r.time).getTime())/86400000;
@@ -434,8 +478,8 @@ function hasAlert(nm){return hasKusaAlert(nm)||hasMemoAlert(nm);}
 function getLayerStyle(nm,feat){
   const col=fieldColor(nm);
   const isSel=multiSelected.has(nm);
-  const blockCode=(feat.properties.field_id||'').replace(/-.*/, '');
-  const cropName=(feat.properties.crop||'').trim();
+  const blockCode=feat?(feat.properties.field_id||'').replace(/-.*/, ''):'';
+  const cropName=feat?(feat.properties.crop||'').trim():'';
   const blockHighlight=selBlocks.size>0&&selBlocks.has(blockCode);
   const cropHighlight=selCrops.size>0&&cropMatchesFilter(cropName);
   const isHighlighted=blockHighlight||cropHighlight||isSel;
@@ -450,37 +494,44 @@ function getLayerStyle(nm,feat){
   return{color,weight,fillColor:col,fillOpacity:opacity};
 }
 
+// ============================================================
+// [NEW] renderMap: setStyle で色だけ更新、マーカーは着脱式
+// ============================================================
 function renderMap(){
   if(!GJ||!map)return;
-  Object.values(layers).forEach(l=>map.removeLayer(l));layers={};
-  Object.values(markers).forEach(m=>map.removeLayer(m));markers={};
   let a4=0,totalArea=0,filteredCount=0;
-  GJ.features.forEach(feat=>{
-    const nm=feat.properties.name;
+
+  fieldFeatureMap.forEach((feat,nm)=>{
     const col=fieldColor(nm);
     if(col==='#e74c3c'&&mode==='date')a4++;
-    const style=getLayerStyle(nm,feat);
-    const layer=L.geoJSON(feat,{style}).on('click',()=>multiMode?toggleFieldSelect(nm):openPanel(feat)).addTo(map);
-    layers[nm]=layer;
+
+    // [NEW] レイヤーは setStyle のみ（removeLayer/addLayer なし）
+    const layer=layers[nm];
+    if(layer)layer.setStyle(getLayerStyle(nm,feat));
+
     const blockCode=(feat.properties.field_id||'').replace(/-.*/, '');
     const cropName=(feat.properties.crop||'').trim();
     const inBlock=selBlocks.size===0||selBlocks.has(blockCode);
     const inCrop=cropMatchesFilter(cropName);
     if(inBlock&&inCrop){filteredCount++;totalArea+=(parseFloat(feat.properties.area_a)||0);}
-    if(hasAlert(nm)&&(alertFilters.size===0||matchesAlertFilter(nm))){
-      try{
-        const bounds=L.geoJSON(feat).getBounds();
-        if(!bounds.isValid())return;
-        const center=bounds.getCenter();
-        const parts=[];
-        if(hasKusaAlert(nm))parts.push(getKusaIconHtml(nm));
-        if(hasMemoAlert(nm))parts.push('<span style="font-size:14px;text-shadow:0 0 3px #fff">⚠️</span>');
-        const html='<div style="display:flex;gap:2px;align-items:center">'+parts.join('')+'</div>';
-        const mk=L.marker(center,{icon:L.divIcon({className:'',html,iconSize:[44,22],iconAnchor:[22,11]})}).addTo(map);
-        markers[nm]=mk;
-      }catch(e){}
+
+    // [NEW] マーカーは着脱式（hasLayerチェック付き）
+    const mk=markers[nm];
+    if(!mk)return;
+    const shouldShow=hasAlert(nm)&&(alertFilters.size===0||matchesAlertFilter(nm));
+    if(shouldShow){
+      // [NEW] setIcon で最新の色に更新してから表示（草刈り色は時間経過で変わるため毎回更新）
+      const parts=[];
+      if(hasKusaAlert(nm))parts.push(getKusaIconHtml(nm));
+      if(hasMemoAlert(nm))parts.push('<span style="font-size:14px;text-shadow:0 0 3px #fff">⚠️</span>');
+      const html='<div style="display:flex;gap:2px;align-items:center">'+parts.join('')+'</div>';
+      mk.setIcon(L.divIcon({className:'',html,iconSize:[44,22],iconAnchor:[22,11]}));
+      if(!map.hasLayer(mk))map.addLayer(mk);
+    }else{
+      if(map.hasLayer(mk))map.removeLayer(mk);
     }
   });
+
   const isFiltered=selBlocks.size>0||selCrops.size>0;
   document.getElementById('tc').textContent=isFiltered?filteredCount+'/'+GJ.features.length:GJ.features.length;
   document.getElementById('area-total').textContent=totalArea>0?'計 '+totalArea.toFixed(1)+'a':'';
@@ -502,7 +553,6 @@ function updateSummary(){
     const r=records[f.properties.name];
     if(!r){unr++;return;}
     if(herbActive(r)){cnt['除草剤投入中']=(cnt['除草剤投入中']||0)+1;return;}
-    // 除草剤72時間経過：止水として集計
     const status=r.status==='除草剤投入'?'止水':r.status;
     cnt[status]=(cnt[status]||0)+1;
   });
@@ -544,11 +594,7 @@ function setButtonLoading(btnId,loading,defaultText){
   btn.disabled=loading;btn.textContent=loading?'送信中...':(defaultText||'記録する');
 }
 
-// ============================================================
-// 草刈りアラート（pending → 記録するで確定）
-// ============================================================
 function setPendingKusa(status){
-  // 同じボタンを再度押したらキャンセル
   pendingKusa=(pendingKusa===status)?null:status;
   if(selField)updateKusaUI(selField.properties.name.trim());
   updateSaveBtnState();
@@ -558,31 +604,24 @@ function updateKusaUI(nm){
   const body=document.getElementById('kusa-body');if(!body)return;
   const currentActive=hasKusaAlert(nm);
   body.innerHTML='';
-
-  // pending表示
   if(pendingKusa){
     const notice=document.createElement('div');notice.className='pending-notice';
     notice.textContent='⏳ 「記録する」で '+(pendingKusa==='要草刈り'?'🌿 アラート発令':'✅ アラート解除')+'されます　（もう一度押すと取り消し）';
     body.appendChild(notice);
   }
-
   if(!currentActive){
-    // アラートなし
     if(pendingKusa==='要草刈り'){
-      // 取り消しボタン
       const btn=document.createElement('button');btn.className='sub-btn kusa-cancel-btn';
       btn.textContent='✕ 発令を取り消す';
       btn.addEventListener('click',()=>setPendingKusa('要草刈り'));
       body.appendChild(btn);
     }else{
-      // 発令ボタン
       const btn=document.createElement('button');btn.className='sub-btn kusa-alert-btn';
       btn.textContent='🌿 草刈りアラートを発令する';
       btn.addEventListener('click',()=>setPendingKusa('要草刈り'));
       body.appendChild(btn);
     }
   }else{
-    // アラート発令中
     const kusa=kusaData[nm];
     const d=kusa&&kusa.time?new Date(kusa.time):null;
     const info=document.createElement('div');info.className='kusa-active-info';
@@ -590,7 +629,6 @@ function updateKusaUI(nm){
     const meta=document.createElement('span');meta.className='kusa-meta';
     meta.textContent=d?(d.toLocaleDateString('ja')+' '+kusa.person):'';
     info.appendChild(badge);info.appendChild(meta);body.appendChild(info);
-
     if(pendingKusa==='解除'){
       const btn=document.createElement('button');btn.className='sub-btn kusa-cancel-btn';
       btn.textContent='✕ 解除を取り消す';
@@ -605,16 +643,12 @@ function updateKusaUI(nm){
   }
 }
 
-// ============================================================
-// メモ
-// ============================================================
 function updateMemoUI(nm){
   const list=document.getElementById('task-list');
   const inputRow=document.getElementById('task-input-row');
   if(!list)return;
   const actives=memoData[nm]||[];
   list.innerHTML='';
-  // アクティブなメモを全件表示
   actives.forEach(memo=>{
     const d=memo.time?new Date(memo.time):null;
     const wrap=document.createElement('div');wrap.className='memo-active-wrap';wrap.style.marginBottom='6px';
@@ -631,7 +665,7 @@ function updateMemoUI(nm){
     editBtn.textContent='✏ 編集';editBtn.style.cssText='font-size:11px;padding:5px 10px;color:#888;border-color:#ddd;background:#fafafa;';
     editBtn.addEventListener('click',()=>{
       contentDiv.style.display='none';editBtn.style.display='none';
-      resolveBtn.style.display='none'; // 編集中は対応済みボタンを非表示
+      resolveBtn.style.display='none';
       const editInput=document.createElement('input');editInput.type='text';editInput.className='sub-input';
       editInput.value=memo.content;editInput.style.cssText='width:100%;margin-bottom:4px;';
       const saveBtn=document.createElement('button');saveBtn.className='sub-btn';
@@ -644,7 +678,7 @@ function updateMemoUI(nm){
       });
       cancelBtn.addEventListener('click',()=>{
         contentDiv.style.display='';editBtn.style.display='';
-        resolveBtn.style.display=''; // キャンセル時に対応済みボタンを再表示
+        resolveBtn.style.display='';
         editInput.remove();saveBtn.remove();cancelBtn.remove();
       });
       wrap.insertBefore(editInput,metaDiv);
@@ -654,9 +688,7 @@ function updateMemoUI(nm){
     wrap.appendChild(contentDiv);wrap.appendChild(metaDiv);wrap.appendChild(btnRow);
     list.appendChild(wrap);
   });
-  // 新規メモ入力欄は常に表示
   if(inputRow)inputRow.style.display='flex';
-  // メモ履歴
   const hist=memoHistAll.filter(h=>h[0]===nm);
   if(hist.length>0){
     const toggle=document.createElement('div');toggle.className='memo-hist-toggle';
@@ -708,9 +740,6 @@ function updateSaveBtnState(){
   btn.disabled=!(selStatus||pendingKusa||hasMemoText||hasBulkMemo);
 }
 
-// ============================================================
-// パネル開閉
-// ============================================================
 function openPanel(feat){
   const p=feat.properties;selField=feat;selStatus=null;pendingKusa=null;histOpen=false;exitEditMode();
   document.getElementById('pt').textContent=p.name.trim();
@@ -739,7 +768,6 @@ function openPanel(feat){
     const b=document.createElement('button');b.className='sbtn s'+s;b.textContent=s;
     if(s==='確認のみ'&&!hasRecord){b.disabled=true;b.title='未記録の圃場には使用できません';}
     else{b.addEventListener('click',()=>{
-      // 除草剤投入中の圃場に別の状態を選んだ場合は確認ダイアログ
       const r=records[p.name.trim()];
       if(s!=='確認のみ'&&herbActive(r)){
         if(!confirm('現在除草剤投入中（あと'+herbRemain(r)+'）です。\n本当に状態を上書きしますか？')){return;}
@@ -750,7 +778,6 @@ function openPanel(feat){
   });
   initTimeSelector(0,new Date().getHours());
   document.getElementById('multi-banner').style.display='none';
-  // 過去の記録
   const fh=allHist.filter(h=>h[0]===p.name.trim()).slice(-10).reverse();
   const hs=document.getElementById('hist-section');
   if(fh.length>0){
@@ -855,10 +882,8 @@ async function loadRecords(){
 function changeUser(){const n=prompt('担当者名を入力してください',curUser);if(n!==null){curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n||'未設定';}}
 
 document.addEventListener('DOMContentLoaded',()=>{
-  // 圃場名検索
   const searchInput=document.getElementById('search-input');
   const searchResults=document.getElementById('search-results');
-  // 検索用正規化（全角→半角・大文字小文字統一）
   function normalizeForSearch(str){
     return str.replace(/[Ａ-Ｚａ-ｚ０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).toLowerCase();
   }
@@ -884,15 +909,14 @@ document.addEventListener('DOMContentLoaded',()=>{
   searchResults.addEventListener('click',e=>{
     const item=e.target.closest('.sres-item');if(!item||!item.dataset.name)return;
     const name=item.dataset.name;
-    const feat=GJ.features.find(f=>f.properties.name.trim()===name);
+    // [NEW] find() → fieldFeatureMap.get()
+    const feat=fieldFeatureMap.get(name);
     if(!feat)return;
     searchInput.value='';searchResults.classList.remove('open');searchResults.innerHTML='';
     if(multiMode){
-      // 複数選択モード中は選択に追加するだけ
       const layer=layers[name];
       if(layer)map.fitBounds(layer.getBounds().pad(0.3));
       toggleFieldSelect(name);
-      // 一括パネルが開いていればタイトルを更新
       if(document.getElementById('panel').classList.contains('open')&&selField===null){
         const cnt=multiSelected.size;
         document.getElementById('pt').textContent=cnt+'枚の一括記録';
@@ -911,7 +935,6 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
   });
 
-  // メモ入力欄の変更でsavebtn状態更新
   document.getElementById('task-input').addEventListener('input',updateSaveBtnState);
 
   document.getElementById('savebtn').addEventListener('click',async()=>{
@@ -925,15 +948,12 @@ document.addEventListener('DOMContentLoaded',()=>{
       setTimeout(()=>ov.style.pointerEvents='',100);return;
     }
 
-    // 複数選択モード
     if(multiSelected.size>0&&selField===null){
       const bulkMemoText=bulkMemoInputRef?bulkMemoInputRef.value.trim():'';
       if(!selStatus&&!bulkMemoText)return;
       setButtonLoading('savebtn',true);
       if(!curUser){const n=prompt('担当者名を入力してください');if(!n){setButtonLoading('savebtn',false,'記録する');return;}curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
       const time=getSelectedTime();const targets=[...multiSelected];
-      // 通信をすべて先に実行→両方成功後にローカル更新（二重登録防止）
-      // リトライ時は成功済みの通信をスキップ
       try{
         if(selStatus&&!bulkStatusSaved){
           await postToGAS({action:'bulk',records:targets.map(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;return{name:nm,status:newS,person:curUser,memo:'',time};})});
@@ -943,7 +963,6 @@ document.addEventListener('DOMContentLoaded',()=>{
           await postToGAS({action:'memo_bulk',names:targets,content:bulkMemoText,person:curUser,time});
           bulkMemoSaved=true;
         }
-        // 全通信成功後：loadRecordsで一撃同期
         await loadRecords();
         bulkStatusSaved=false;bulkMemoSaved=false;
       }catch(e){alert('保存に失敗しました。電波の良い場所で再度「記録する」を押してください。');setButtonLoading('savebtn',false,'記録する');return;}
@@ -956,8 +975,6 @@ document.addEventListener('DOMContentLoaded',()=>{
 
     const nm=selField.properties.name.trim();
     const time=getSelectedTime();
-
-    // ペイロード構築（timeを常に含める→草刈り・メモの日時連動）
     const payload={action:'save',name:nm,person:curUser,time};
     let waterNewS=null;
     if(selStatus){
@@ -968,7 +985,6 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(pendingKusa)payload.kusa=pendingKusa;
     if(hasMemoToAdd)payload.memo={content:memoText};
 
-    // 1回のPOSTで送信 → 成功後はloadRecordsで一撃同期
     try{
       if(!singleSaved){
         await postToGAS(payload);
