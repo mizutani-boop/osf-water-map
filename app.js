@@ -1108,13 +1108,23 @@ document.addEventListener('DOMContentLoaded',()=>{
   const searchInput=document.getElementById('search-input');
   const searchResults=document.getElementById('search-results');
   function normalizeForSearch(str){
-    return str.replace(/[Ａ-Ｚａ-ｚ０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).toLowerCase();
+    return str
+      .replace(/[Ａ-Ｚａ-ｚ０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)) // 全角英数→半角
+      .replace(/[（）「」【】『』〔〕]/g,c=>({'（':'(','）':')','「':'[','」':']','【':'[','】':']','『':'[','』':']','〔':'[','〕':']'}[c]||c)) // 全角括弧→半角
+      .toLowerCase();
   }
   searchInput.addEventListener('input',()=>{
     const q=searchInput.value.trim();
     if(!q){searchResults.classList.remove('open');searchResults.innerHTML='';return;}
-    const qNorm=normalizeForSearch(q);
-    const hits=GJ?GJ.features.filter(f=>normalizeForSearch(f.properties.name||'').includes(qNorm)).slice(0,10):[];
+    // スペース区切りで複数キーワードAND検索
+    const terms=normalizeForSearch(q).split(/[\s　]+/).filter(Boolean);
+    const hits=GJ?GJ.features.filter(f=>{
+      const name=normalizeForSearch(f.properties.name||'');
+      const fid=normalizeForSearch(f.properties.field_id||'');
+      const block=normalizeForSearch(f.properties.block||'');
+      // 全タームが名前・圃場ID・ブロック名のいずれかにマッチすればOK
+      return terms.every(t=>name.includes(t)||fid.includes(t)||block.includes(t));
+    }).slice(0,10):[];
     if(hits.length===0){
       searchResults.innerHTML='<div class="sres-item" style="color:#aaa;cursor:default;text-align:center;">✕ 一致する圃場がありません</div>';
       searchResults.classList.add('open');return;
