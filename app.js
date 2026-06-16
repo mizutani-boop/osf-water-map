@@ -583,12 +583,26 @@ function renderMap(){
     // [NEW] マーカーは着脱式（hasLayerチェック付き）
     const mk=markers[nm];
     if(!mk)return;
-    const shouldShow=hasAlert(nm)&&(alertFilters.size===0||matchesAlertFilter(nm));
+    let shouldShow=false;
+    const parts=[];
+    if(mode==='mizushi'||mode==='ankyo'){
+      // 水尻・暗渠モード：通常アラートは非表示、暗渠特記事項のみ表示
+      if(mode==='ankyo'){
+        const master=ankyoMaster[nm];
+        if(master&&master.note){
+          parts.push('<span style="background:#e67e22;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;box-shadow:0 1px 3px rgba(0,0,0,0.4)">🔧</span>');
+          shouldShow=true;
+        }
+      }
+    }else{
+      // 通常モード：草刈り・メモアラートを表示
+      if(hasAlert(nm)&&(alertFilters.size===0||matchesAlertFilter(nm))){
+        if(hasKusaAlert(nm))parts.push(getKusaIconHtml(nm));
+        if(hasMemoAlert(nm))parts.push('<span style="font-size:14px;text-shadow:0 0 3px #fff">⚠️</span>');
+        shouldShow=true;
+      }
+    }
     if(shouldShow){
-      // [NEW] setIcon で最新の色に更新してから表示（草刈り色は時間経過で変わるため毎回更新）
-      const parts=[];
-      if(hasKusaAlert(nm))parts.push(getKusaIconHtml(nm));
-      if(hasMemoAlert(nm))parts.push('<span style="font-size:14px;text-shadow:0 0 3px #fff">⚠️</span>');
       const html='<div style="display:flex;gap:2px;align-items:center">'+parts.join('')+'</div>';
       mk.setIcon(L.divIcon({className:'',html,iconSize:[44,22],iconAnchor:[22,11]}));
       if(!map.hasLayer(mk))map.addLayer(mk);
