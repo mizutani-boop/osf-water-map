@@ -86,6 +86,8 @@ let bulkKusaSaved=false;
 // [NEW] デバウンス
 // ============================================================
 let renderTimer=null;
+let showFieldIdLabels=false;
+let fieldIdMarkers={};
 function debouncedRenderMap(){
   clearTimeout(renderTimer);
   renderTimer=setTimeout(renderMap,50);
@@ -152,6 +154,19 @@ function buildLayers(){
           interactive:false
         });
         markers[nm]=mk;
+        // 圃場番号ラベル
+        const fid=(feat.properties.field_id||'').trim();
+        if(fid){
+          const lbl=L.marker(center,{
+            icon:L.divIcon({
+              className:'',
+              html:'<div style="font-size:9px;font-weight:700;color:#fff;background:rgba(0,0,0,0.55);padding:1px 4px;border-radius:4px;white-space:nowrap;pointer-events:none;">'+fid+'</div>',
+              iconAnchor:[0,0]
+            }),
+            interactive:false
+          });
+          fieldIdMarkers[nm]=lbl;
+        }
       }
     }catch(e){}
   });
@@ -1494,6 +1509,23 @@ function openStatusItemsEditor(modal, box) {
     }
   };
   box.appendChild(saveBtn);
+}
+
+// ============================================================
+// 圃場番号ラベル表示ON/OFF
+// ============================================================
+function toggleFieldIdLabels(){
+  showFieldIdLabels=!showFieldIdLabels;
+  const btn=document.getElementById('fieldid-btn');
+  if(btn){
+    btn.style.borderColor=showFieldIdLabels?'#2C4A1E':'#888';
+    btn.style.color=showFieldIdLabels?'#2C4A1E':'#555';
+    btn.style.background=showFieldIdLabels?'#f0fff4':'rgba(255,255,255,0.96)';
+  }
+  Object.entries(fieldIdMarkers).forEach(([nm,lbl])=>{
+    if(showFieldIdLabels){if(!map.hasLayer(lbl))map.addLayer(lbl);}
+    else{if(map.hasLayer(lbl))map.removeLayer(lbl);}
+  });
 }
 
 // ============================================================
