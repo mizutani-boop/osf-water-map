@@ -1,7 +1,10 @@
 // OSF Water Management App v6 (performance optimized)
 const GAS='https://script.google.com/macros/s/AKfycbwcV7O5APU32iUPODpt6UOl_M-7_FavWZjGKaFfwaHYLLj4QU0w07UjZv7dt0s-6zqy/exec';
 const BM={"AR":"有富","NK":"中村","SS":"篠坂","KM":"北村","NI":"西今在家","SB":"菖蒲","FM":"古海","MD":"本高","BB":"馬場","HT":"服部","KR":"高路","TN":"徳尾","YG":"山が鼻","AJ":"味野","MW":"美和"};
-const S_OPTS=['入水','ちょい入れ','止水','中干し','水尻外し','除草剤投入','確認のみ'];
+// [NEW] 水管理項目：GASの設定シートから動的に読み込む（初期値はデフォルト）
+let S_OPTS=['入水','ちょい入れ','止水','中干し','水尻外し','除草剤投入','確認のみ'];
+// 管理者セッション
+let adminPassword=null;
 const S_COL={入水:'#3498db',ちょい入れ:'#1abc9c',止水:'#e67e22',中干し:'#e74c3c',水尻外し:'#a04000',除草剤投入:'#8e44ad',確認のみ:'#95a5a6'};
 const CROP_GROUPS=[
   {key:'ZR1',color:'#1abc9c',label:'ZR1'},
@@ -876,6 +879,11 @@ async function loadRecords(){
     if(r.kusa&&typeof r.kusa==='object')kusaData=r.kusa;
     if(r.memo&&typeof r.memo==='object')memoData=r.memo;
     if(r.memoHist&&Array.isArray(r.memoHist))memoHistAll=r.memoHist;
+    // [NEW] 設定シートから水管理項目を反映
+    if(r.settings&&r.settings.status_items&&Array.isArray(r.settings.status_items)){
+      const items=r.settings.status_items.filter(i=>i.enabled).sort((a,b)=>a.order-b.order);
+      if(items.length>0)S_OPTS=items.map(i=>i.label);
+    }
   }
   renderMap();
   document.getElementById('last-update').textContent=new Date().toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'})+'更新';
@@ -1018,3 +1026,216 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('ulabel').textContent=curUser||'未設定';
   init();
 });
+
+// ============================================================
+// [NEW] 管理者機能
+// ============================================================
+
+// 管理者ログイン
+async function openAdminLogin() {
+  const pw = prompt('管理者パスワードを入力してください');
+  if (pw === null) return;
+  try {
+    const res = await postToGAS({ action: 'admin_auth', password: pw });
+    if (res.ok) {
+      adminPassword = pw;
+      openAdminMenu();
+    } else {
+      alert('パスワードが違います');
+    }
+  } catch(e) {
+    alert('認証に失敗しました。電波状況を確認してください。');
+  }
+}
+
+// 管理者メニュー画面を生成・表示
+function openAdminMenu() {
+  // 既存のモーダルがあれば削除
+  const existing = document.getElementById('admin-modal');
+  if (existing) existing.remove();
+
+  const ADMIN_SECTIONS = [
+    { id: 'status_items', label: '📋 水管理項目の設定', status: 'active' },
+    { id: 'field_info',   label: '🌾 圃場設備情報の管理', status: 'planned' },
+    { id: 'alert_thresh', label: '🚨 アラート閾値の設定', status: 'planned' },
+  ];
+
+  const modal = document.createElement('div');
+  modal.id = 'admin-modal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 0;box-sizing:border-box;';
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:14px;width:92%;max-width:480px;padding:20px;box-shadow:0 8px 32px rgba(0,0,0,0.3);margin:auto;';
+
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;';
+  header.innerHTML = '<h2 style="margin:0;font-size:17px;color:#2C4A1E">⚙️ 管理者メニュー</h2>';
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'background:none;border:none;font-size:20px;cursor:pointer;color:#888;padding:4px 8px;';
+  closeBtn.onclick = () => modal.remove();
+  header.appendChild(closeBtn);
+  box.appendChild(header);
+
+  // セクション一覧
+  ADMIN_SECTIONS.forEach(sec => {
+    const btn = document.createElement('button');
+    const isActive = sec.status === 'active';
+    btn.style.cssText = 'width:100%;padding:14px 16px;margin-bottom:10px;border-radius:10px;border:2px solid '+(isActive?'#2C4A1E':'#ddd')+';background:'+(isActive?'#f0fff4':'#f9f9f9')+';color:'+(isActive?'#2C4A1E':'#aaa')+';font-size:15px;font-weight:700;text-align:left;cursor:'+(isActive?'pointer':'default')+';display:flex;justify-content:space-between;align-items:center;';
+    btn.innerHTML = '<span>'+sec.label+'</span><span style="font-size:12px;font-weight:400">'+(isActive?'▶':'準備中')+'</span>';
+    if (isActive) {
+      btn.onclick = () => openAdminSection(sec.id, modal, box);
+    }
+    box.appendChild(btn);
+  });
+
+  // ログアウトボタン
+  const logoutBtn = document.createElement('button');
+  logoutBtn.textContent = 'ログアウト';
+  logoutBtn.style.cssText = 'width:100%;padding:10px;margin-top:6px;border-radius:10px;border:1px solid #ddd;background:#fff;color:#888;font-size:13px;cursor:pointer;';
+  logoutBtn.onclick = () => { adminPassword = null; modal.remove(); };
+  box.appendChild(logoutBtn);
+
+  modal.appendChild(box);
+  // モーダル外クリックで閉じる
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+// 各セクションの画面を生成
+function openAdminSection(sectionId, modal, box) {
+  if (sectionId === 'status_items') openStatusItemsEditor(modal, box);
+}
+
+// 水管理項目の設定画面
+function openStatusItemsEditor(modal, box) {
+  box.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;';
+  header.innerHTML = '<h2 style="margin:0;font-size:17px;color:#2C4A1E">📋 水管理項目の設定</h2>';
+  const backBtn = document.createElement('button');
+  backBtn.textContent = '← 戻る';
+  backBtn.style.cssText = 'background:none;border:none;font-size:13px;cursor:pointer;color:#3498db;padding:4px 8px;';
+  backBtn.onclick = () => openAdminMenu();
+  header.appendChild(backBtn);
+  box.appendChild(header);
+
+  const notice = document.createElement('div');
+  notice.style.cssText = 'font-size:11px;color:#856404;background:#fff3cd;border:1px solid #f39c12;border-radius:8px;padding:8px 10px;margin-bottom:14px;';
+  notice.textContent = '※ 「確認のみ」は必須項目のため変更できません。ドラッグで順番を変更できます。';
+  box.appendChild(notice);
+
+  // 現在の項目リスト（確認のみ以外が編集対象）
+  let currentItems = S_OPTS.filter(s => s !== '確認のみ').map(s => ({ label: s, enabled: true }));
+
+  const listWrap = document.createElement('div');
+  listWrap.id = 'admin-item-list';
+  listWrap.style.cssText = 'margin-bottom:14px;';
+
+  function renderList() {
+    listWrap.innerHTML = '';
+    currentItems.forEach((item, idx) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;background:#f9f9f9;border-radius:8px;border:1px solid #eee;cursor:grab;';
+      row.draggable = true;
+      row.dataset.idx = idx;
+
+      // ドラッグ処理
+      row.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', idx); row.style.opacity = '0.4'; });
+      row.addEventListener('dragend', () => { row.style.opacity = '1'; });
+      row.addEventListener('dragover', e => e.preventDefault());
+      row.addEventListener('drop', e => {
+        e.preventDefault();
+        const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+        const toIdx = idx;
+        if (fromIdx === toIdx) return;
+        const moved = currentItems.splice(fromIdx, 1)[0];
+        currentItems.splice(toIdx, 0, moved);
+        renderList();
+      });
+
+      // ハンドルアイコン
+      const handle = document.createElement('span');
+      handle.textContent = '☰';
+      handle.style.cssText = 'color:#ccc;font-size:16px;flex-shrink:0;';
+
+      // ON/OFFトグル
+      const toggle = document.createElement('input');
+      toggle.type = 'checkbox';
+      toggle.checked = item.enabled;
+      toggle.style.cssText = 'width:18px;height:18px;flex-shrink:0;cursor:pointer;';
+      toggle.onchange = () => { currentItems[idx].enabled = toggle.checked; };
+
+      // 項目名（編集可能）
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = item.label;
+      input.style.cssText = 'flex:1;border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:13px;';
+      input.oninput = () => { currentItems[idx].label = input.value.trim(); };
+
+      // 削除ボタン
+      const delBtn = document.createElement('button');
+      delBtn.textContent = '🗑';
+      delBtn.style.cssText = 'background:none;border:none;font-size:15px;cursor:pointer;color:#e74c3c;flex-shrink:0;';
+      delBtn.onclick = () => { if (confirm('「'+item.label+'」を削除しますか？')) { currentItems.splice(idx, 1); renderList(); } };
+
+      row.appendChild(handle);
+      row.appendChild(toggle);
+      row.appendChild(input);
+      row.appendChild(delBtn);
+      listWrap.appendChild(row);
+    });
+  }
+  renderList();
+  box.appendChild(listWrap);
+
+  // 項目追加
+  const addWrap = document.createElement('div');
+  addWrap.style.cssText = 'display:flex;gap:8px;margin-bottom:16px;';
+  const addInput = document.createElement('input');
+  addInput.type = 'text';
+  addInput.placeholder = '新しい項目名を入力...';
+  addInput.style.cssText = 'flex:1;border:1px solid #ddd;border-radius:8px;padding:8px 10px;font-size:13px;';
+  const addBtn = document.createElement('button');
+  addBtn.textContent = '＋ 追加';
+  addBtn.style.cssText = 'padding:8px 14px;border-radius:8px;border:2px solid #2C4A1E;background:#f0fff4;color:#2C4A1E;font-weight:700;cursor:pointer;white-space:nowrap;';
+  addBtn.onclick = () => {
+    const label = addInput.value.trim();
+    if (!label) return;
+    if (currentItems.some(i => i.label === label)) { alert('同じ名前の項目が既にあります'); return; }
+    currentItems.push({ label, enabled: true });
+    addInput.value = '';
+    renderList();
+  };
+  addWrap.appendChild(addInput);
+  addWrap.appendChild(addBtn);
+  box.appendChild(addWrap);
+
+  // 保存ボタン
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = '💾 保存する';
+  saveBtn.style.cssText = 'width:100%;padding:13px;border-radius:10px;border:none;background:#2C4A1E;color:#fff;font-size:15px;font-weight:700;cursor:pointer;';
+  saveBtn.onclick = async () => {
+    const enabledItems = currentItems.filter(i => i.label.trim());
+    // 確認のみは末尾に必ず追加
+    const finalItems = [
+      ...enabledItems,
+      { label: '確認のみ', enabled: true, order: enabledItems.length }
+    ].map((item, idx) => ({ ...item, order: idx }));
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = '保存中...';
+    try {
+      await postToGAS({ action: 'save_settings', password: adminPassword, key: 'status_items', value: finalItems });
+      await loadRecords(); // 全端末に即反映
+      saveBtn.textContent = '✅ 保存しました';
+      setTimeout(() => { saveBtn.textContent = '💾 保存する'; saveBtn.disabled = false; }, 2000);
+    } catch(e) {
+      alert('保存に失敗しました');
+      saveBtn.textContent = '💾 保存する';
+      saveBtn.disabled = false;
+    }
+  };
+  box.appendChild(saveBtn);
+}
