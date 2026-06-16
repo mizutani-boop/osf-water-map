@@ -627,7 +627,8 @@ function updateSummary(){
     GJ.features.forEach(f=>{
       const blockCode=(f.properties.field_id||'').replace(/-.*/, '');
       if(selBlocks.size>0&&!selBlocks.has(blockCode))return;
-      const m=mizushiData[f.properties.name];
+      const nm=f.properties.name.trim();
+      const m=mizushiData[nm];
       if(!m)cnt['未記録']++;
       else if(m.status==='設置済み')cnt['設置済み']++;
       else if(m.status==='外し済み')cnt['外し済み']++;
@@ -643,7 +644,7 @@ function updateSummary(){
     GJ.features.forEach(f=>{
       const blockCode=(f.properties.field_id||'').replace(/-.*/, '');
       if(selBlocks.size>0&&!selBlocks.has(blockCode))return;
-      const nm=f.properties.name;
+      const nm=f.properties.name.trim();
       const master=ankyoMaster[nm];
       if(!master){cnt['未登録']++;return;}
       if(master.hasAnkyo==='なし'){cnt['なし']++;return;}
