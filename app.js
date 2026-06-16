@@ -505,7 +505,7 @@ function hasKusaAlert(nm){return !!(kusaData[nm]);}
 function hasMemoAlert(nm){return !!(memoData[nm]&&memoData[nm].length>0);}
 function hasAlert(nm){return hasKusaAlert(nm)||hasMemoAlert(nm);}
 
-function getLayerStyle(nm,feat){
+function getLayerStyle(nm,feat,modeFilterMatch){
   const col=fieldColor(nm);
   const isSel=multiSelected.has(nm);
   const blockCode=feat?(feat.properties.field_id||'').replace(/-.*/, ''):'';
@@ -513,22 +513,32 @@ function getLayerStyle(nm,feat){
   const blockHighlight=selBlocks.size>0&&selBlocks.has(blockCode);
   const cropHighlight=selCrops.size>0&&cropMatchesFilter(cropName);
   const isHighlighted=blockHighlight||cropHighlight||isSel;
+  // modeFilterMatchが渡された場合はそれを使う（renderMapからの呼び出し時は二重計算防止）
   let opacity=0.75;
-  if(mode==='mizushi'&&mizushiFilters.size>0){
-    const m=mizushiData[nm];const ms=m?m.status:'未記録';
-    opacity=mizushiFilters.has(ms)?0.85:0.05;
-  }else if(mode==='ankyo'&&(ankyoFilters.size>0||ankyoSpecialFilter)){
-    const master=ankyoMaster[nm];
-    let as='未登録';
-    if(master){if(master.hasAnkyo==='なし')as='なし';else{const op=ankyoOpData[nm];as=(!op||op.status==='はめた')?'はめ済み':'外し済み';}}
-    let match=ankyoFilters.size===0||ankyoFilters.has(as);
-    if(ankyoSpecialFilter)match=match&&!!(master&&master.note);
-    opacity=match?0.85:0.05;
-  }else if(alertFilters.size>0){opacity=matchesAlertFilter(nm)?0.85:0.05;}
-  else if(selBlocks.size>0||selCrops.size>0){opacity=isHighlighted?0.85:0.18;}
+  if(modeFilterMatch!==undefined){
+    // 水尻・暗渠フィルター
+    if((mode==='mizushi'&&mizushiFilters.size>0)||(mode==='ankyo'&&(ankyoFilters.size>0||ankyoSpecialFilter))){
+      opacity=modeFilterMatch?0.85:0.05;
+    }else if(alertFilters.size>0){opacity=matchesAlertFilter(nm)?0.85:0.05;}
+    else if(selBlocks.size>0||selCrops.size>0){opacity=isHighlighted?0.85:0.18;}
+  }else{
+    if(mode==='mizushi'&&mizushiFilters.size>0){
+      const m=mizushiData[nm];const ms=m?m.status:'未記録';
+      opacity=mizushiFilters.has(ms)?0.85:0.05;
+    }else if(mode==='ankyo'&&(ankyoFilters.size>0||ankyoSpecialFilter)){
+      const master=ankyoMaster[nm];
+      let as='未登録';
+      if(master){if(master.hasAnkyo==='なし')as='なし';else{const op=ankyoOpData[nm];as=(!op||op.status==='はめた')?'はめ済み':'外し済み';}}
+      let match=ankyoFilters.size===0||ankyoFilters.has(as);
+      if(ankyoSpecialFilter)match=match&&!!(master&&master.note);
+      opacity=match?0.85:0.05;
+    }else if(alertFilters.size>0){opacity=matchesAlertFilter(nm)?0.85:0.05;}
+    else if(selBlocks.size>0||selCrops.size>0){opacity=isHighlighted?0.85:0.18;}
+  }
   if(isSel)opacity=0.85;
   let color='#fff',weight=0.8;
   if(isSel){color='#f39c12';weight=3;}
+  else if((mode==='mizushi'||mode==='ankyo')&&modeFilterMatch===true){color='#2C4A1E';weight=2;}
   else if(alertFilters.size>0&&matchesAlertFilter(nm)){color='#e74c3c';weight=2.5;}
   else if(isHighlighted&&!alertFilters.size){color='#e74c3c';weight=2.5;}
   return{color,weight,fillColor:col,fillOpacity:opacity,fill:true};
@@ -544,36 +554,28 @@ function renderMap(){
   fieldFeatureMap.forEach((feat,nm)=>{
     const col=fieldColor(nm);
 
-    // [NEW] レイヤーは setStyle のみ（removeLayer/addLayer なし）
+    // [NEW] レイヤーは setStyle のみ（renderMap下部で計算後に実行）
     const layer=layers[nm];
-    if(layer)layer.setStyle(getLayerStyle(nm,feat));
 
     const blockCode=(feat.properties.field_id||'').replace(/-.*/, '');
     const cropName=(feat.properties.crop||'').trim();
     const inBlock=selBlocks.size===0||selBlocks.has(blockCode);
     const inCrop=cropMatchesFilter(cropName);
-    // 水尻・暗渠フィルター判定
+    // 水尻・暗渠フィルター判定（1回だけ計算してgetLayerStyleに渡す）
     let inModeFilter=true;
     if(mode==='mizushi'&&mizushiFilters.size>0){
-      const m=mizushiData[nm];
-      const ms=m?m.status:'未記録';
+      const m=mizushiData[nm];const ms=m?m.status:'未記録';
       inModeFilter=mizushiFilters.has(ms);
+    }else if(mode==='ankyo'&&(ankyoFilters.size>0||ankyoSpecialFilter)){
+      const master=ankyoMaster[nm];
+      let as='未登録';
+      if(master){if(master.hasAnkyo==='なし')as='なし';else{const op=ankyoOpData[nm];as=(!op||op.status==='はめた')?'はめ済み':'外し済み';}}
+      inModeFilter=ankyoFilters.size===0||ankyoFilters.has(as);
+      if(ankyoSpecialFilter)inModeFilter=inModeFilter&&!!(master&&master.note);
     }
-    if(mode==='ankyo'){
-      if(ankyoFilters.size>0){
-        const master=ankyoMaster[nm];
-        let as='未登録';
-        if(master){
-          if(master.hasAnkyo==='なし')as='なし';
-          else{const op=ankyoOpData[nm];as=(!op||op.status==='はめた')?'はめ済み':'外し済み';}
-        }
-        inModeFilter=ankyoFilters.has(as);
-      }
-      if(ankyoSpecialFilter){
-        const master=ankyoMaster[nm];
-        inModeFilter=inModeFilter&&!!(master&&master.note);
-      }
-    }
+    // setStyleにmodeFilterMatchを渡して二重計算を防ぐ
+    const hasModeFilter=(mode==='mizushi'&&mizushiFilters.size>0)||(mode==='ankyo'&&(ankyoFilters.size>0||ankyoSpecialFilter));
+    if(layer)layer.setStyle(getLayerStyle(nm,feat,hasModeFilter?inModeFilter:undefined));
     if(inBlock&&inCrop&&inModeFilter){
       filteredCount++;totalArea+=(parseFloat(feat.properties.area_a)||0);
       // フィルター表示中の圃場のみカウント
@@ -1846,20 +1848,20 @@ function toggleAnkyoFilter(status){
   const el=document.getElementById('akyfc-'+status);if(el)el.classList.toggle('on',ankyoFilters.has(status));
   const btn=document.getElementById('ankyo-status-btn');
   btn.classList.toggle('filtered',ankyoFilters.size>0);
-  btn.textContent=ankyoFilters.size>0?'🌊 暗渠状態（'+ankyoFilters.size+'）▾':'🌊 暗渠状態 ▾';
+  btn.textContent=ankyoFilters.size>0?'🕳 暗渠状態（'+ankyoFilters.size+'）▾':'🕳 暗渠状態 ▾';
   renderMap();
 }
 function resetAnkyoFilter(){
   ankyoFilters.clear();
   ['はめ済み','外し済み','なし','未登録'].forEach(s=>{const el=document.getElementById('akyfc-'+s);if(el)el.classList.remove('on');});
   const btn=document.getElementById('ankyo-status-btn');
-  if(btn){btn.classList.remove('filtered');btn.textContent='🌊 暗渠状態 ▾';}
+  if(btn){btn.classList.remove('filtered');btn.textContent='🕳 暗渠状態 ▾';}
   document.getElementById('ankyo-status-menu')?.classList.remove('open');
   renderMap();
 }
 function toggleAnkyoSpecialFilter(){
   ankyoSpecialFilter=!ankyoSpecialFilter;
   const btn=document.getElementById('ankyo-special-btn');
-  if(btn){btn.classList.toggle('filtered',ankyoSpecialFilter);btn.textContent=ankyoSpecialFilter?'⚠️ 特記事項あり ✓':'⚠️ 特記事項あり';}
+  if(btn){btn.classList.toggle('filtered',ankyoSpecialFilter);btn.textContent=ankyoSpecialFilter?'🔧 特記事項あり ✓':'🔧 特記事項あり';}
   renderMap();
 }
