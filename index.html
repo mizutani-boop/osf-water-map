@@ -11,7 +11,7 @@
 body{font-family:'Helvetica Neue',Arial,sans-serif;}
 #map{width:100vw;height:100vh;}
 #loading{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(44,74,30,0.9);color:#fff;padding:16px 24px;border-radius:12px;font-size:14px;z-index:9999;}
-#topbar{position:fixed;top:0;left:0;right:0;z-index:1000;background:rgba(44,74,30,0.96);padding:7px 10px;display:flex;align-items:center;gap:6px;}
+#topbar{position:fixed;top:0;left:0;right:0;z-index:1000;background:rgba(44,74,30,0.96);padding:7px 10px;padding-top:max(7px,env(safe-area-inset-top));display:flex;align-items:center;gap:6px;}
 .mode-btn{padding:5px 11px;border:1.5px solid rgba(255,255,255,0.35);border-radius:14px;background:transparent;color:rgba(255,255,255,0.65);font-size:11px;font-weight:600;cursor:pointer;}
 .mode-btn.active{background:rgba(255,255,255,0.22);color:#fff;border-color:#fff;}
 #topbar-right{margin-left:auto;display:flex;align-items:center;gap:6px;}
