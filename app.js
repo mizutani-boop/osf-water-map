@@ -475,7 +475,7 @@ function fieldColor(nm){
     const d=(Date.now()-new Date(r.time).getTime())/86400000;
     return d<2?'#2ecc71':d<4?'#f39c12':'#e74c3c';
   }
-  if(mode==='status')return S_COL[r.status]||'#95a5a6';
+  if(mode==='status')return S_COL[r.status]||'#115522'; // カスタム項目は深緑
   const d=(Date.now()-new Date(r.time).getTime())/86400000;
   return d<2?'#2ecc71':d<4?'#f39c12':'#e74c3c';
 }
@@ -559,22 +559,27 @@ function updateSummary(){
       '<div class="sum-item"><div class="sum-dot" style="background:'+g.color+'"></div>'+g.label+' <span class="sum-num">'+cnt[g.label]+'</span></div>'
     ).join('');return;
   }
+  // S_OPTSベースで動的にカウント箱を生成（カスタム項目にも自動対応）
   const cnt={};let unr=0;
+  S_OPTS.forEach(opt=>{cnt[opt]=0;});
+  cnt['除草剤投入中']=0;
   GJ.features.forEach(f=>{
     const r=records[f.properties.name];
     if(!r){unr++;return;}
-    if(herbActive(r)){cnt['除草剤投入中']=(cnt['除草剤投入中']||0)+1;return;}
+    if(herbActive(r)){cnt['除草剤投入中']++;return;}
     const status=r.status==='除草剤投入'?'止水':r.status;
-    cnt[status]=(cnt[status]||0)+1;
+    if(cnt[status]!==undefined){cnt[status]++;}else{cnt[status]=1;}
   });
   const d4=Object.values(records).filter(r=>!herbActive(r)&&(Date.now()-new Date(r.time).getTime())/86400000>=4).length;
-  const items=[
-    {l:'未記録',c:'#95a5a6',n:unr},{l:'入水',c:'#3498db',n:cnt['入水']||0},
-    {l:'止水',c:'#e67e22',n:cnt['止水']||0},{l:'中干し',c:'#e74c3c',n:cnt['中干し']||0},
-    {l:'除草剤',c:'#8e44ad',n:cnt['除草剤投入中']||0},{l:'水尻外し',c:'#a04000',n:cnt['水尻外し']||0},
-    {l:'要確認(4日超)',c:'#e74c3c',n:d4},
-  ].filter(i=>i.n>0);
-  document.getElementById('summary').innerHTML=items.map(i=>
+  // S_OPTSの順番でサマリーを動的生成
+  const items=[{l:'未記録',c:'#95a5a6',n:unr}];
+  S_OPTS.forEach(opt=>{
+    if(opt==='除草剤投入'){if(cnt['除草剤投入中']>0)items.push({l:'除草剤',c:'#8e44ad',n:cnt['除草剤投入中']});}
+    else if(opt!=='確認のみ'&&cnt[opt]>0){items.push({l:opt,c:S_COL[opt]||'#115522',n:cnt[opt]});}
+  });
+  if(d4>0)items.push({l:'要確認(4日超)',c:'#e74c3c',n:d4});
+  const filteredItems=items.filter(i=>i.n>0);
+  document.getElementById('summary').innerHTML=filteredItems.map(i=>
     '<div class="sum-item"><div class="sum-dot" style="background:'+i.c+'"></div>'+i.l+' <span class="sum-num">'+i.n+'</span></div>'
   ).join('');
 }
