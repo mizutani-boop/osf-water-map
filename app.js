@@ -42,6 +42,7 @@ let mode='date',selBlocks=new Set(),selCrops=new Set(),alertFilters=new Set();
 // ============================================================
 // [NEW] O(1)インデックス: name → feature
 // ============================================================
+let GJ; // 圃場GeoJSONデータ
 let fieldFeatureMap=new Map();
 
 function getKusaDays(nm){
