@@ -117,9 +117,11 @@ function initMap(){
   // ズームコントロール非表示（2本指ズームで操作）
   const locCtrl=L.control({position:'bottomright'});
   locCtrl.onAdd=function(){
-    const d=L.DomUtil.create('div','leaflet-bar leaflet-control');
-    d.innerHTML='<a href="#" style="font-size:16px;display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:#fff">📍</a>';
-    d.onclick=e=>{e.preventDefault();map.locate({setView:true,maxZoom:17});};return d;
+    const d=L.DomUtil.create('div','leaflet-control');
+    d.style.cssText='background:#fff;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.3);width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;margin-bottom:10px;';
+    d.innerHTML='📍';
+    d.onclick=e=>{e.preventDefault();e.stopPropagation();map.locate({setView:true,maxZoom:17});};
+    return d;
   };
   locCtrl.addTo(map);
   let locMk=null;
