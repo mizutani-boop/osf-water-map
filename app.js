@@ -447,6 +447,7 @@ function openMultiPanel(){
   const hasUnrecorded=targets.some(nm=>!records[nm]);
   S_OPTS.forEach(s=>{
     const b=document.createElement('button');b.className='sbtn s'+s;b.textContent=s;
+    b.style.setProperty('--c',S_COL[s]||'#115522');
     if(s==='確認のみ'&&hasUnrecorded){b.disabled=true;}
     else{b.addEventListener('click',()=>{bulkStatusSaved=false;document.querySelectorAll('.sbtn').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');selStatus=s;updateSaveBtnState();});}
     sg.appendChild(b);
@@ -823,6 +824,7 @@ function openPanel(feat){
   const hasRecord=!!records[p.name.trim()];
   S_OPTS.forEach(s=>{
     const b=document.createElement('button');b.className='sbtn s'+s;b.textContent=s;
+    b.style.setProperty('--c',S_COL[s]||'#115522');
     if(s==='確認のみ'&&!hasRecord){b.disabled=true;b.title='未記録の圃場には使用できません';}
     else{b.addEventListener('click',()=>{
       const r=records[p.name.trim()];
@@ -881,7 +883,7 @@ function enterEditMode(origTime,origStatus,origMemo){
   // 削除済み項目の場合は一時ボタンを追加
   if(!S_OPTS.includes(origStatus)){
     const sg=document.getElementById('sgrid');
-    const tmp=document.createElement('button');
+    const tmp=document.createElement('button');tmp.id='tmp-edit-btn';
     tmp.className='sbtn';tmp.textContent=origStatus;
     tmp.disabled=true;tmp.classList.add('sel');
     tmp.style.cssText='opacity:0.5;cursor:not-allowed;';
@@ -895,6 +897,7 @@ function enterEditMode(origTime,origStatus,origMemo){
   document.getElementById('panel').scrollTop=0;
 }
 function exitEditMode(){
+  const tmpBtn=document.getElementById('tmp-edit-btn');if(tmpBtn)tmpBtn.remove();
   editMode=false;editOrigTime=null;
   document.getElementById('panel').classList.remove('edit-mode');
   document.getElementById('edit-banner').style.display='none';
