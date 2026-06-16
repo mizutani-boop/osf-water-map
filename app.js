@@ -18,8 +18,8 @@ const CROP_GROUPS=[
 ];
 const LEGS={
   date:[{c:'#2ecc71',l:'2日以内'},{c:'#f39c12',l:'3日'},{c:'#e74c3c',l:'4日以上'},{c:'#8e44ad',l:'除草剤投入中'},{c:'#95a5a6',l:'未記録'}],
-  status:[{c:'#3498db',l:'入水'},{c:'#1abc9c',l:'ちょい入れ'},{c:'#e67e22',l:'止水'},{c:'#e74c3c',l:'中干し'},{c:'#a04000',l:'水尻外し'},{c:'#8e44ad',l:'除草剤投入'},{c:'#95a5a6',l:'未記録'}],
-  crop:CROP_GROUPS.map(g=>({c:g.color,l:g.label})),
+  mizushi:[{c:'#8e44ad',l:'設置済み'},{c:'#e67e22',l:'外し済み'},{c:'#95a5a6',l:'未記録'}],
+  ankyo:[{c:'#2980b9',l:'はめ済み'},{c:'#e67e22',l:'外し済み'},{c:'#27ae60',l:'なし'},{c:'#95a5a6',l:'未登録'}],
 };
 function getCropGroup(crop){
   if(!crop)return CROP_GROUPS[6];
@@ -38,7 +38,8 @@ function cleanCropName(name) {
 }
 
 let records={},allHist=[],kusaData={},memoData={},memoHistAll=[];
-let mode='date',selBlocks=new Set(),selCrops=new Set(),alertFilters=new Set();
+let mizushiData={},ankyoMaster={},ankyoOpData={};
+let mode='date',selBlocks=new Set(),selCrops=new Set(),alertFilters=new Set(),mizushiFilters=new Set(),ankyoFilters=new Set(),ankyoSpecialFilter=false;
 
 // ============================================================
 // [NEW] O(1)インデックス: name → feature
@@ -136,7 +137,7 @@ function buildLayers(){
     // レイヤー生成（クリックイベントもここで1回バインド）
     const layer=L.geoJSON(feat,{
       style:{color:'#fff',weight:0.8,fillColor:'#95a5a6',fillOpacity:0.75,fill:true}
-    }).on('click',()=>multiMode?toggleFieldSelect(nm):openPanel(feat)).addTo(map);
+    }).on('click',()=>multiMode?toggleFieldSelect(nm):openPanelByMode(feat)).addTo(map);
     layers[nm]=layer;
 
     // マーカー生成（初期は map に addTo しない＝浮かせた状態）
@@ -320,6 +321,8 @@ async function bulkConfirmOnly(){
 }
 
 function openMultiPanel(){
+  if(mode==='mizushi'){openMizushiMultiPanel();return;}
+  if(mode==='ankyo'){openAnkyoMultiPanel();return;}
   if(multiSelected.size===0)return;
   selField=null;selStatus=null;pendingKusa=null;exitEditMode();
   const targets=[...multiSelected];
@@ -471,12 +474,20 @@ function herbActive(rec){if(!rec||rec.status!=='除草剤投入')return false;re
 function herbRemain(rec){const h=72-(Date.now()-new Date(rec.time).getTime())/3600000;if(h<=0)return '間もなく終了';return Math.floor(h)+'時間'+Math.floor((h%1)*60)+'分';}
 
 function fieldColor(nm){
-  const r=records[nm];
-  if(mode==='crop'){
-    // [NEW] find() → fieldFeatureMap.get()
-    const feat=fieldFeatureMap.get(nm);
-    return getCropGroup(normalizeCropName(feat?feat.properties.crop||'':'')).color;
+  if(mode==='mizushi'){
+    const m=mizushiData[nm];
+    if(!m)return '#95a5a6';
+    return m.status==='設置済み'?'#8e44ad':m.status==='外し済み'?'#e67e22':'#95a5a6';
   }
+  if(mode==='ankyo'){
+    const master=ankyoMaster[nm];
+    if(!master)return '#95a5a6';
+    if(master.hasAnkyo==='なし')return '#27ae60';
+    const op=ankyoOpData[nm];
+    if(!op)return '#2980b9'; // マスタあり・操作未記録ははめ済みとみなす
+    return op.status==='はめた'?'#2980b9':'#e67e22';
+  }
+  const r=records[nm];
   if(!r)return '#95a5a6';
   if(herbActive(r))return '#8e44ad';
   if(r.status==='除草剤投入'){
@@ -561,22 +572,41 @@ function renderMap(){
 
 function updateSummary(){
   if(!GJ)return;
-  if(mode==='crop'){
-    const cnt={};
+  if(mode==='mizushi'){
+    const cnt={設置済み:0,外し済み:0,未記録:0};
     GJ.features.forEach(f=>{
-      // フィルター連動
       const blockCode=(f.properties.field_id||'').replace(/-.*/, '');
-      const cropName=(f.properties.crop||'').trim();
-      const inBlock=selBlocks.size===0||selBlocks.has(blockCode);
-      const inCrop=cropMatchesFilter(cropName);
-      if(!inBlock||!inCrop)return;
-      const g=getCropGroup(f.properties.crop||'');
-      cnt[g.label]=(cnt[g.label]||0)+1;
+      if(selBlocks.size>0&&!selBlocks.has(blockCode))return;
+      const m=mizushiData[f.properties.name];
+      if(!m)cnt['未記録']++;
+      else if(m.status==='設置済み')cnt['設置済み']++;
+      else if(m.status==='外し済み')cnt['外し済み']++;
+      else cnt['未記録']++;
     });
-    document.getElementById('summary').innerHTML=CROP_GROUPS.filter(g=>cnt[g.label]>0).map(g=>
-      '<div class="sum-item"><div class="sum-dot" style="background:'+g.color+'"></div>'+g.label+' <span class="sum-num">'+cnt[g.label]+'</span></div>'
-    ).join('');return;
+    document.getElementById('summary').innerHTML=
+      [{l:'設置済み',c:'#8e44ad',n:cnt['設置済み']},{l:'外し済み',c:'#e67e22',n:cnt['外し済み']},{l:'未記録',c:'#95a5a6',n:cnt['未記録']}]
+      .filter(i=>i.n>0).map(i=>'<div class="sum-item"><div class="sum-dot" style="background:'+i.c+'"></div>'+i.l+' <span class="sum-num">'+i.n+'</span></div>').join('');
+    return;
   }
+  if(mode==='ankyo'){
+    const cnt={はめ済み:0,外し済み:0,なし:0,未登録:0};
+    GJ.features.forEach(f=>{
+      const blockCode=(f.properties.field_id||'').replace(/-.*/, '');
+      if(selBlocks.size>0&&!selBlocks.has(blockCode))return;
+      const nm=f.properties.name;
+      const master=ankyoMaster[nm];
+      if(!master){cnt['未登録']++;return;}
+      if(master.hasAnkyo==='なし'){cnt['なし']++;return;}
+      const op=ankyoOpData[nm];
+      if(!op||op.status==='はめた')cnt['はめ済み']++;
+      else cnt['外し済み']++;
+    });
+    document.getElementById('summary').innerHTML=
+      [{l:'はめ済み',c:'#2980b9',n:cnt['はめ済み']},{l:'外し済み',c:'#e67e22',n:cnt['外し済み']},{l:'なし',c:'#27ae60',n:cnt['なし']},{l:'未登録',c:'#95a5a6',n:cnt['未登録']}]
+      .filter(i=>i.n>0).map(i=>'<div class="sum-item"><div class="sum-dot" style="background:'+i.c+'"></div>'+i.l+' <span class="sum-num">'+i.n+'</span></div>').join('');
+    return;
+  }
+
   // S_OPTSベースで動的にカウント箱を生成（フィルター連動・カスタム項目対応）
   const cnt={};let unr=0;
   S_OPTS.forEach(opt=>{cnt[opt]=0;});
@@ -626,7 +656,7 @@ function updateSummary(){
 
 function setMode(m){
   mode=m;
-  ['btn-date','btn-status','btn-crop'].forEach(id=>{
+  ['btn-date','btn-status','btn-mizushi','btn-ankyo'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.classList.toggle('active',id==='btn-'+m);
   });
   updateLegend();renderMap();
@@ -634,11 +664,10 @@ function setMode(m){
 function updateLegend(){
   let legs;
   if(mode==='status'){
-    // S_OPTS・S_COLベースで動的生成（管理者変更に追従）
     legs=S_OPTS.filter(s=>s!=='確認のみ').map(s=>({c:S_COL[s]||'#115522',l:s}));
     legs.push({c:'#95a5a6',l:'未記録'});
   }else{
-    legs=LEGS[mode];
+    legs=LEGS[mode]||LEGS['date'];
   }
   document.getElementById('legend').innerHTML=legs.map(l=>'<div class="leg-item"><div class="leg-dot" style="background:'+l.c+'"></div>'+l.l+'</div>').join('');
 }
@@ -953,6 +982,9 @@ async function loadRecords(){
     if(r.kusa&&typeof r.kusa==='object')kusaData=r.kusa;
     if(r.memo&&typeof r.memo==='object')memoData=r.memo;
     if(r.memoHist&&Array.isArray(r.memoHist))memoHistAll=r.memoHist;
+    if(r.mizushi&&typeof r.mizushi==='object')mizushiData=r.mizushi;
+    if(r.ankyoMaster&&typeof r.ankyoMaster==='object')ankyoMaster=r.ankyoMaster;
+    if(r.ankyoOp&&typeof r.ankyoOp==='object')ankyoOpData=r.ankyoOp;
     // [NEW] 設定シートから水管理項目を反映
     if(r.settings&&r.settings.status_items&&Array.isArray(r.settings.status_items)){
       // 全項目を保持（管理者画面でOFF項目も表示するため）
@@ -1027,6 +1059,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('task-input').addEventListener('input',()=>{singleSaved=false;updateSaveBtnState();});
 
   document.getElementById('savebtn').addEventListener('click',async()=>{
+    // 水尻・暗渠モードは専用処理
+    if(mode==='mizushi'||mode==='ankyo'){await saveMizushiOrAnkyo();return;}
     const memoInput=document.getElementById('task-input');
     const memoText=memoInput?memoInput.value.trim():'';
     const hasMemoToAdd=memoText.length>0;
@@ -1037,8 +1071,33 @@ document.addEventListener('DOMContentLoaded',()=>{
       setTimeout(()=>ov.style.pointerEvents='',100);return;
     }
 
+    // 水尻一括
+    if(mode==='mizushi'&&multiSelected.size>0&&selField===null){
+      if(!selStatus)return;
+      setButtonLoading('savebtn',true);
+      if(!curUser){const n=prompt('担当者名を入力してください');if(!n){setButtonLoading('savebtn',false,'記録する');return;}curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
+      const time=getSelectedTime();
+      try{
+        await postToGAS({action:'mizushi_bulk',names:[...multiSelected],status:selStatus,person:curUser,time});
+        await loadRecords();
+      }catch(e){alert('保存に失敗しました');setButtonLoading('savebtn',false,'記録する');return;}
+      setButtonLoading('savebtn',false,'記録する');clearMultiSelect();closePanel();renderMap();return;
+    }
+    // 暗渠一括
+    if(mode==='ankyo'&&multiSelected.size>0&&selField===null){
+      if(!selStatus)return;
+      setButtonLoading('savebtn',true);
+      if(!curUser){const n=prompt('担当者名を入力してください');if(!n){setButtonLoading('savebtn',false,'記録する');return;}curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
+      const time=getSelectedTime();
+      try{
+        await postToGAS({action:'ankyo_operation_bulk',names:[...multiSelected],status:selStatus,person:curUser,time});
+        await loadRecords();
+      }catch(e){alert('保存に失敗しました');setButtonLoading('savebtn',false,'記録する');return;}
+      setButtonLoading('savebtn',false,'記録する');clearMultiSelect();closePanel();renderMap();return;
+    }
     if(multiSelected.size>0&&selField===null){
       const bulkMemoText=bulkMemoInputRef?bulkMemoInputRef.value.trim():'';
+
       if(!selStatus&&!bulkMemoText)return;
       setButtonLoading('savebtn',true);
       if(!curUser){const n=prompt('担当者名を入力してください');if(!n){setButtonLoading('savebtn',false,'記録する');return;}curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
@@ -1136,7 +1195,7 @@ function openAdminMenu() {
 
   const ADMIN_SECTIONS = [
     { id: 'status_items', label: '📋 水管理項目の設定', status: 'active' },
-    { id: 'field_info',   label: '🌾 圃場設備情報の管理', status: 'planned' },
+    { id: 'mizushi_init', label: '💧 水尻を全圃場 設置済みに一括登録', status: 'active' },
     { id: 'alert_thresh', label: '🚨 アラート閾値の設定', status: 'planned' },
   ];
 
@@ -1185,6 +1244,23 @@ function openAdminMenu() {
 // 各セクションの画面を生成
 function openAdminSection(sectionId, modal, box) {
   if (sectionId === 'status_items') openStatusItemsEditor(modal, box);
+  if (sectionId === 'mizushi_init') confirmMizushiInit(modal);
+}
+
+async function confirmMizushiInit(modal) {
+  if (!confirm('全圃場（'+GJ.features.length+'枚）の水尻を「設置済み」として一括登録します。
+よろしいですか？')) return;
+  if (!curUser) { const n = prompt('担当者名を入力してください'); if (!n) return; curUser = n; localStorage.setItem('osf_user', n); document.getElementById('ulabel').textContent = n; }
+  const time = new Date().toISOString();
+  const names = GJ.features.map(f => f.properties.name.trim());
+  try {
+    await postToGAS({ action: 'mizushi_bulk', names, status: '設置済み', person: curUser, time });
+    await loadRecords();
+    alert('✅ 全圃場の水尻を設置済みに登録しました');
+    modal.remove();
+  } catch(e) {
+    alert('保存に失敗しました。電波状況を確認してください。');
+  }
 }
 
 // 水管理項目の設定画面
@@ -1322,4 +1398,361 @@ function openStatusItemsEditor(modal, box) {
     }
   };
   box.appendChild(saveBtn);
+}
+
+// ============================================================
+// 水尻・暗渠モード：モード別パネル分岐
+// ============================================================
+function openPanelByMode(feat){
+  if(mode==='mizushi')openMizushiPanel(feat);
+  else if(mode==='ankyo')openAnkyoPanel(feat);
+  else openPanel(feat);
+}
+
+// ============================================================
+// 水尻パネル
+// ============================================================
+function openMizushiPanel(feat){
+  const nm=feat.properties.name.trim();
+  const p=feat.properties;
+  const m=mizushiData[nm];
+
+  // 複数選択モードの場合
+  if(multiMode){toggleFieldSelect(nm);return;}
+
+  selField=feat;selStatus=null;pendingKusa=null;exitEditMode();
+
+  document.getElementById('pt').textContent=p.name.trim();
+  const bn=BM[(p.field_id||'').replace(/-.*/, '')]||'';
+  document.getElementById('pm').textContent=[p.field_id,bn,p.area_a?p.area_a+'a':''].filter(Boolean).join(' | ')||'詳細なし';
+
+  // 現在の状態表示
+  const pl=document.getElementById('pl');
+  if(m){
+    const d=new Date(m.time);
+    pl.textContent='水尻：'+m.status+'　'+d.toLocaleDateString('ja')+' '+m.person;
+    pl.style.cssText='background:#f0fff4;color:#27ae60;padding:7px 10px;border-radius:8px;';
+  }else{
+    pl.textContent='水尻：未記録';
+    pl.style.cssText='background:#fff8f0;color:#e67e22;padding:7px 10px;border-radius:8px;';
+  }
+  document.getElementById('htimer').style.display='none';
+  document.getElementById('kusa-section').style.display='none';
+  document.getElementById('task-section').style.display='none';
+  document.getElementById('hist-section').style.display='none';
+  document.getElementById('multi-banner').style.display='none';
+  document.getElementById('bulk-extra').innerHTML='';
+  document.getElementById('edit-savebtn').style.display='none';
+  document.getElementById('cancel-edit-btn').style.display='none';
+
+  // 水尻専用ボタン
+  const sg=document.getElementById('sgrid');sg.innerHTML='';
+  ['設置済み','外し済み'].forEach(s=>{
+    const b=document.createElement('button');b.className='sbtn';b.textContent=s;
+    b.style.cssText='background:'+(s==='設置済み'?'#f4eaff':'#fff3e0')+';border-color:'+(s==='設置済み'?'#8e44ad':'#e67e22')+';color:'+(s==='設置済み'?'#8e44ad':'#e67e22')+';';
+    if(m&&m.status===s)b.classList.add('sel');
+    b.addEventListener('click',()=>{
+      document.querySelectorAll('.sbtn').forEach(x=>x.classList.remove('sel'));
+      b.classList.add('sel');selStatus=s;
+      document.getElementById('savebtn').disabled=false;
+    });
+    sg.appendChild(b);
+  });
+
+  initTimeSelector(0,new Date().getHours());
+  document.getElementById('savebtn').style.display='block';
+  document.getElementById('savebtn').textContent='記録する';
+  document.getElementById('savebtn').disabled=true;
+  document.getElementById('panel').classList.add('open');
+  document.getElementById('overlay').classList.add('on');
+}
+
+// ============================================================
+// 暗渠パネル
+// ============================================================
+function openAnkyoPanel(feat){
+  const nm=feat.properties.name.trim();
+  const p=feat.properties;
+  const master=ankyoMaster[nm];
+  const op=ankyoOpData[nm];
+
+  if(multiMode){toggleFieldSelect(nm);return;}
+
+  selField=feat;selStatus=null;pendingKusa=null;exitEditMode();
+
+  document.getElementById('pt').textContent=p.name.trim();
+  const bn=BM[(p.field_id||'').replace(/-.*/, '')]||'';
+  document.getElementById('pm').textContent=[p.field_id,bn,p.area_a?p.area_a+'a':''].filter(Boolean).join(' | ')||'詳細なし';
+  document.getElementById('htimer').style.display='none';
+  document.getElementById('kusa-section').style.display='none';
+  document.getElementById('task-section').style.display='none';
+  document.getElementById('hist-section').style.display='none';
+  document.getElementById('multi-banner').style.display='none';
+  document.getElementById('edit-savebtn').style.display='none';
+  document.getElementById('cancel-edit-btn').style.display='none';
+  document.getElementById('savebtn').style.display='none';
+
+  const pl=document.getElementById('pl');
+  const sg=document.getElementById('sgrid');sg.innerHTML='';
+  const bulkExtra=document.getElementById('bulk-extra');bulkExtra.innerHTML='';
+
+  if(!master){
+    // 未登録：登録フォームを表示
+    pl.textContent='暗渠情報：未登録';
+    pl.style.cssText='background:#fff8f0;color:#e67e22;padding:7px 10px;border-radius:8px;';
+    renderAnkyoForm(nm, null, bulkExtra);
+  }else{
+    // 登録済み：情報表示＋操作
+    const hasAnkyo=master.hasAnkyo==='あり';
+    const sizesText=master.sizes&&master.sizes.length>0?master.sizes.join('・'):'';
+    pl.textContent='暗渠：'+master.hasAnkyo+(hasAnkyo?' | '+master.count+'本'+(sizesText?' | '+sizesText:''):'');
+    pl.style.cssText='background:#f0fff4;color:#27ae60;padding:7px 10px;border-radius:8px;';
+
+    // 特記事項アラート
+    if(master.note){
+      const noteDiv=document.createElement('div');
+      noteDiv.style.cssText='background:#fff3cd;border:1px solid #f39c12;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:13px;color:#856404;';
+      noteDiv.textContent='⚠️ '+master.note;
+      bulkExtra.appendChild(noteDiv);
+    }
+
+    // 編集ボタン
+    const editBtn=document.createElement('button');editBtn.className='sub-btn';
+    editBtn.textContent='✏ 暗渠情報を編集';
+    editBtn.style.cssText='width:100%;margin-bottom:10px;';
+    editBtn.addEventListener('click',()=>{bulkExtra.innerHTML='';renderAnkyoForm(nm,master,bulkExtra);});
+    bulkExtra.appendChild(editBtn);
+
+    // はめた/外した操作（暗渠ありの場合のみ）
+    if(hasAnkyo){
+      const opDiv=document.createElement('div');
+      opDiv.style.cssText='margin-bottom:8px;';
+      const curStatus=op?op.status==='はめた'?'はめ済み':'外し済み':'未記録';
+      const curDiv=document.createElement('div');
+      curDiv.style.cssText='font-size:13px;color:#666;margin-bottom:8px;';
+      curDiv.textContent='現在の状態：'+curStatus+(op?' ('+new Date(op.time).toLocaleDateString('ja')+' '+op.person+')':'');
+      opDiv.appendChild(curDiv);
+
+      ['はめた','外した'].forEach(s=>{
+        const b=document.createElement('button');b.className='sbtn';b.textContent=s;
+        b.style.cssText='background:'+(s==='はめた'?'#e8f0fe':'#fff3e0')+';border-color:'+(s==='はめた'?'#2980b9':'#e67e22')+';color:'+(s==='はめた'?'#2980b9':'#e67e22')+';margin-right:8px;';
+        if(op&&((s==='はめた'&&op.status==='はめた')||(s==='外した'&&op.status==='外した')))b.classList.add('sel');
+        b.addEventListener('click',()=>{
+          document.querySelectorAll('.sbtn').forEach(x=>x.classList.remove('sel'));
+          b.classList.add('sel');selStatus=s;
+          document.getElementById('savebtn').style.display='block';
+          document.getElementById('savebtn').disabled=false;
+        });
+        opDiv.appendChild(b);
+      });
+      sg.appendChild(opDiv);
+      initTimeSelector(0,new Date().getHours());
+      document.getElementById('savebtn').style.display='block';
+      document.getElementById('savebtn').disabled=true;
+    }
+  }
+
+  document.getElementById('panel').classList.add('open');
+  document.getElementById('overlay').classList.add('on');
+}
+
+// 暗渠登録・編集フォーム
+function renderAnkyoForm(nm, existing, container){
+  container.innerHTML='';
+
+  const title=document.createElement('div');
+  title.style.cssText='font-weight:700;font-size:14px;color:#2C4A1E;margin-bottom:10px;';
+  title.textContent=existing?'暗渠情報を編集':'暗渠情報を登録';
+  container.appendChild(title);
+
+  // あり/なし
+  const radioWrap=document.createElement('div');radioWrap.style.cssText='display:flex;gap:16px;margin-bottom:12px;';
+  let hasAnkyoVal=existing?existing.hasAnkyo:'あり';
+  ['あり','なし'].forEach(v=>{
+    const label=document.createElement('label');label.style.cssText='display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;';
+    const radio=document.createElement('input');radio.type='radio';radio.name='ankyo-has';radio.value=v;
+    if(hasAnkyoVal===v)radio.checked=true;
+    radio.addEventListener('change',()=>{hasAnkyoVal=v;updateCountSection();});
+    label.appendChild(radio);label.appendChild(document.createTextNode(v));
+    radioWrap.appendChild(label);
+  });
+  container.appendChild(radioWrap);
+
+  // 本数・サイズセクション
+  const countSection=document.createElement('div');
+  container.appendChild(countSection);
+
+  function updateCountSection(){
+    countSection.innerHTML='';
+    if(hasAnkyoVal!=='あり')return;
+
+    // 本数
+    const countWrap=document.createElement('div');countWrap.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:10px;';
+    const countLabel=document.createElement('span');countLabel.textContent='本数：';countLabel.style.fontSize='14px';
+    const countSel=document.createElement('select');countSel.style.cssText='border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:14px;';
+    for(let i=1;i<=10;i++){const o=document.createElement('option');o.value=i;o.textContent=i+'本';if(existing&&existing.count===i)o.selected=true;countSel.appendChild(o);}
+    countSel.addEventListener('change',renderSizeInputs);
+    countWrap.appendChild(countLabel);countWrap.appendChild(countSel);
+    countSection.appendChild(countWrap);
+
+    // サイズ入力
+    const sizeWrap=document.createElement('div');sizeWrap.id='ankyo-sizes';sizeWrap.style.cssText='margin-bottom:12px;';
+    countSection.appendChild(sizeWrap);
+
+    function renderSizeInputs(){
+      sizeWrap.innerHTML='';
+      const n=parseInt(countSel.value);
+      for(let i=0;i<n;i++){
+        const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:6px;';
+        const lbl=document.createElement('span');lbl.textContent=(i+1)+'本目：';lbl.style.fontSize='13px;';
+        const sel=document.createElement('select');sel.className='ankyo-size-sel';sel.style.cssText='border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:13px;flex:1;';
+        ['65mm','75mm','100mm','その他'].forEach(sz=>{
+          const o=document.createElement('option');o.value=sz;o.textContent=sz;
+          if(existing&&existing.sizes&&existing.sizes[i]){
+            if(existing.sizes[i]===sz||(sz==='その他'&&!['65mm','75mm','100mm'].includes(existing.sizes[i])))o.selected=true;
+          }
+          sel.appendChild(o);
+        });
+        const otherInput=document.createElement('input');otherInput.type='text';otherInput.placeholder='数字のみ';
+        otherInput.style.cssText='border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:13px;width:80px;display:none;';
+        otherInput.addEventListener('input',()=>{otherInput.value=otherInput.value.replace(/[^0-9]/g,'');});
+        if(existing&&existing.sizes&&existing.sizes[i]&&!['65mm','75mm','100mm'].includes(existing.sizes[i])){
+          otherInput.style.display='block';otherInput.value=existing.sizes[i].replace('mm','');
+        }
+        sel.addEventListener('change',()=>{otherInput.style.display=sel.value==='その他'?'block':'none';});
+        row.appendChild(lbl);row.appendChild(sel);row.appendChild(otherInput);
+        sizeWrap.appendChild(row);
+      }
+    }
+    renderSizeInputs();
+    countSel.addEventListener('change',renderSizeInputs);
+  }
+  updateCountSection();
+
+  // 特記事項
+  const noteWrap=document.createElement('div');noteWrap.style.cssText='margin-bottom:12px;';
+  const noteLbl=document.createElement('div');noteLbl.textContent='特記事項：';noteLbl.style.cssText='font-size:13px;color:#666;margin-bottom:4px;';
+  const noteInput=document.createElement('input');noteInput.type='text';noteInput.className='sub-input';
+  noteInput.placeholder='ネジ破損・ビニール対処など';noteInput.style.cssText='width:100%;';
+  if(existing&&existing.note)noteInput.value=existing.note;
+  noteWrap.appendChild(noteLbl);noteWrap.appendChild(noteInput);
+  container.appendChild(noteWrap);
+
+  // 登録ボタン
+  const saveBtn=document.createElement('button');
+  saveBtn.textContent=existing?'✏ 更新する':'📝 登録する';
+  saveBtn.style.cssText='width:100%;padding:11px;border-radius:10px;border:none;background:#2C4A1E;color:#fff;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:6px;';
+  saveBtn.addEventListener('click',async()=>{
+    if(!curUser){const n=prompt('担当者名を入力してください');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
+    const hasAnkyo=document.querySelector('input[name="ankyo-has"]:checked')?.value||'あり';
+    let sizes=[];
+    let count=0;
+    if(hasAnkyo==='あり'){
+      const countSel=countSection.querySelector('select');
+      count=countSel?parseInt(countSel.value):0;
+      document.querySelectorAll('.ankyo-size-sel').forEach((sel,i)=>{
+        if(sel.value==='その他'){
+          const inputs=sel.parentElement.querySelectorAll('input[type=text]');
+          const v=inputs[0]?inputs[0].value.trim():'';
+          sizes.push(v?v+'mm':'?mm');
+        }else{sizes.push(sel.value);}
+      });
+    }
+    // その他バリデーション
+    const hasInvalidOther=sizes.some(s=>s==='?mm');
+    if(hasInvalidOther){alert('「その他」のサイズを半角数字で入力してください');return;}
+    saveBtn.disabled=true;saveBtn.textContent='保存中...';
+    try{
+      await postToGAS({action:'ankyo_master_save',name:nm,hasAnkyo,count,sizes,note:noteInput.value.trim()});
+      await loadRecords();
+      openAnkyoPanel(selField);
+    }catch(e){alert('保存に失敗しました');saveBtn.disabled=false;saveBtn.textContent=existing?'✏ 更新する':'📝 登録する';}
+  });
+  container.appendChild(saveBtn);
+}
+
+// ============================================================
+// 水尻・暗渠の savebtn クリック処理（モード別）
+// ============================================================
+async function saveMizushiOrAnkyo(){
+  if(!selField||!selStatus)return;
+  if(!curUser){const n=prompt('担当者名を入力してください');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
+  const nm=selField.properties.name.trim();
+  const time=getSelectedTime();
+  setButtonLoading('savebtn',true);
+  try{
+    if(mode==='mizushi'){
+      await postToGAS({action:'mizushi_save',name:nm,status:selStatus,person:curUser,time});
+    }else if(mode==='ankyo'){
+      await postToGAS({action:'ankyo_operation_save',name:nm,status:selStatus,person:curUser,time});
+    }
+    await loadRecords();
+  }catch(e){alert('保存に失敗しました');setButtonLoading('savebtn',false,'記録する');return;}
+  setButtonLoading('savebtn',false,'記録する');
+  closePanel();
+}
+
+// ============================================================
+// 水尻・暗渠の複数選択一括操作
+// ============================================================
+function openMizushiMultiPanel(){
+  if(multiSelected.size===0)return;
+  selField=null;selStatus=null;exitEditMode();
+  const targets=[...multiSelected];
+  document.getElementById('pt').textContent=multiSelected.size+'枚の一括記録（水尻）';
+  document.getElementById('pm').textContent=targets.slice(0,3).join('、')+(targets.length>3?' 他'+(targets.length-3)+'枚':'');
+  document.getElementById('pl').textContent='';document.getElementById('pl').style.cssText='';
+  document.getElementById('htimer').style.display='none';
+  document.getElementById('multi-banner').style.display='block';
+  document.getElementById('multi-banner').textContent='☑ '+multiSelected.size+'枚に一括記録します';
+  document.getElementById('kusa-section').style.display='none';
+  document.getElementById('task-section').style.display='none';
+  document.getElementById('hist-section').style.display='none';
+  document.getElementById('bulk-extra').innerHTML='';
+  document.getElementById('edit-savebtn').style.display='none';
+  document.getElementById('cancel-edit-btn').style.display='none';
+  document.getElementById('savebtn').style.display='block';
+  document.getElementById('savebtn').disabled=true;
+  const sg=document.getElementById('sgrid');sg.innerHTML='';
+  ['設置済み','外し済み'].forEach(s=>{
+    const b=document.createElement('button');b.className='sbtn';b.textContent=s;
+    b.style.cssText='background:'+(s==='設置済み'?'#f4eaff':'#fff3e0')+';border-color:'+(s==='設置済み'?'#8e44ad':'#e67e22')+';color:'+(s==='設置済み'?'#8e44ad':'#e67e22')+';';
+    b.addEventListener('click',()=>{document.querySelectorAll('.sbtn').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');selStatus=s;document.getElementById('savebtn').disabled=false;});
+    sg.appendChild(b);
+  });
+  initTimeSelector(0,new Date().getHours());
+  document.getElementById('panel').classList.add('open');
+  document.getElementById('overlay').classList.add('on');
+  document.getElementById('multi-bar').style.display='none';
+}
+
+function openAnkyoMultiPanel(){
+  if(multiSelected.size===0)return;
+  selField=null;selStatus=null;exitEditMode();
+  const targets=[...multiSelected];
+  document.getElementById('pt').textContent=multiSelected.size+'枚の一括記録（暗渠）';
+  document.getElementById('pm').textContent=targets.slice(0,3).join('、')+(targets.length>3?' 他'+(targets.length-3)+'枚':'');
+  document.getElementById('pl').textContent='';document.getElementById('pl').style.cssText='';
+  document.getElementById('htimer').style.display='none';
+  document.getElementById('multi-banner').style.display='block';
+  document.getElementById('multi-banner').textContent='☑ '+multiSelected.size+'枚に一括記録します';
+  document.getElementById('kusa-section').style.display='none';
+  document.getElementById('task-section').style.display='none';
+  document.getElementById('hist-section').style.display='none';
+  document.getElementById('bulk-extra').innerHTML='';
+  document.getElementById('edit-savebtn').style.display='none';
+  document.getElementById('cancel-edit-btn').style.display='none';
+  document.getElementById('savebtn').style.display='block';
+  document.getElementById('savebtn').disabled=true;
+  const sg=document.getElementById('sgrid');sg.innerHTML='';
+  ['はめた','外した'].forEach(s=>{
+    const b=document.createElement('button');b.className='sbtn';b.textContent=s;
+    b.style.cssText='background:'+(s==='はめた'?'#e8f0fe':'#fff3e0')+';border-color:'+(s==='はめた'?'#2980b9':'#e67e22')+';color:'+(s==='はめた'?'#2980b9':'#e67e22')+';';
+    b.addEventListener('click',()=>{document.querySelectorAll('.sbtn').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');selStatus=s;document.getElementById('savebtn').disabled=false;});
+    sg.appendChild(b);
+  });
+  initTimeSelector(0,new Date().getHours());
+  document.getElementById('panel').classList.add('open');
+  document.getElementById('overlay').classList.add('on');
+  document.getElementById('multi-bar').style.display='none';
 }
