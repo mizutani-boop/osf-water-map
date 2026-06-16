@@ -878,6 +878,17 @@ function enterEditMode(origTime,origStatus,origMemo){
   document.getElementById('edit-savebtn').style.display='block';
   document.getElementById('cancel-edit-btn').style.display='block';
   document.querySelectorAll('.sbtn').forEach(b=>{b.disabled=false;b.classList.toggle('sel',b.textContent===origStatus);if(b.textContent===origStatus)selStatus=origStatus;});
+  // 削除済み項目の場合は一時ボタンを追加
+  if(!S_OPTS.includes(origStatus)){
+    const sg=document.getElementById('sgrid');
+    const tmp=document.createElement('button');
+    tmp.className='sbtn';tmp.textContent=origStatus;
+    tmp.disabled=true;tmp.classList.add('sel');
+    tmp.style.cssText='opacity:0.5;cursor:not-allowed;';
+    tmp.title='この項目は現在無効です';
+    sg.appendChild(tmp);
+    selStatus=origStatus;
+  }
   const d=new Date(origTime);const now=new Date();
   const diff=Math.floor((new Date(now.getFullYear(),now.getMonth(),now.getDate())-new Date(d.getFullYear(),d.getMonth(),d.getDate()))/86400000);
   initTimeSelector(Math.min(Math.max(diff,0),2),d.getHours());
@@ -1200,28 +1211,19 @@ function openStatusItemsEditor(modal, box) {
     listWrap.innerHTML = '';
     currentItems.forEach((item, idx) => {
       const row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;background:#f9f9f9;border-radius:8px;border:1px solid #eee;cursor:grab;';
-      row.draggable = true;
-      row.dataset.idx = idx;
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;background:#f9f9f9;border-radius:8px;border:1px solid #eee;';
+      // 上下移動ボタン（スマホ対応）
+      const upBtn = document.createElement('button');
+      upBtn.textContent = '🔼';
+      upBtn.style.cssText = 'background:none;border:none;font-size:13px;cursor:pointer;padding:2px;flex-shrink:0;';
+      upBtn.onclick = () => { if(idx===0)return; const tmp=currentItems[idx-1]; currentItems[idx-1]=currentItems[idx]; currentItems[idx]=tmp; renderList(); };
+      if(idx===0)upBtn.style.opacity='0.2';
 
-      // ドラッグ処理
-      row.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', idx); row.style.opacity = '0.4'; });
-      row.addEventListener('dragend', () => { row.style.opacity = '1'; });
-      row.addEventListener('dragover', e => e.preventDefault());
-      row.addEventListener('drop', e => {
-        e.preventDefault();
-        const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
-        const toIdx = idx;
-        if (fromIdx === toIdx) return;
-        const moved = currentItems.splice(fromIdx, 1)[0];
-        currentItems.splice(toIdx, 0, moved);
-        renderList();
-      });
-
-      // ハンドルアイコン
-      const handle = document.createElement('span');
-      handle.textContent = '☰';
-      handle.style.cssText = 'color:#ccc;font-size:16px;flex-shrink:0;';
+      const downBtn = document.createElement('button');
+      downBtn.textContent = '🔽';
+      downBtn.style.cssText = 'background:none;border:none;font-size:13px;cursor:pointer;padding:2px;flex-shrink:0;';
+      downBtn.onclick = () => { if(idx===currentItems.length-1)return; const tmp=currentItems[idx+1]; currentItems[idx+1]=currentItems[idx]; currentItems[idx]=tmp; renderList(); };
+      if(idx===currentItems.length-1)downBtn.style.opacity='0.2';
 
       // ON/OFFトグル
       const toggle = document.createElement('input');
@@ -1250,7 +1252,8 @@ function openStatusItemsEditor(modal, box) {
       delBtn.style.cssText = 'background:none;border:none;font-size:15px;cursor:pointer;color:#e74c3c;flex-shrink:0;';
       delBtn.onclick = () => { if (confirm('「'+item.label+'」を削除しますか？')) { currentItems.splice(idx, 1); renderList(); } };
 
-      row.appendChild(handle);
+      row.appendChild(upBtn);
+      row.appendChild(downBtn);
       row.appendChild(toggle);
       row.appendChild(colorPicker);
       row.appendChild(input);
