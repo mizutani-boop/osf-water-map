@@ -709,6 +709,26 @@ function setMode(m){
   ['btn-date','btn-status','btn-mizushi','btn-ankyo'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.classList.toggle('active',id==='btn-'+m);
   });
+  // 他モードのフィルターをクリーン（ゴースト干渉防止）
+  if(m!=='date'&&m!=='status'){
+    selCrops.clear();selCropMeta.clear();
+    document.querySelectorAll('[id^="cgfc-"]').forEach(el=>el.classList.remove('on'));
+    const cropBtn=document.getElementById('crop-toggle-btn');if(cropBtn){cropBtn.textContent='🌾 品種 ▾';cropBtn.classList.remove('filtered');}
+    alertFilters.clear();
+    ['kusa_new','kusa_mid','kusa_old','memo'].forEach(t=>{const el=document.getElementById('afc-'+t);if(el)el.classList.remove('on');});
+    const alertBtn=document.getElementById('alert-toggle-btn');if(alertBtn){alertBtn.textContent='🚨 アラート ▾';alertBtn.classList.remove('filtered');}
+  }
+  if(m!=='mizushi'){
+    mizushiFilters.clear();
+    ['設置済み','外し済み','未記録'].forEach(s=>{const el=document.getElementById('mfc-'+s);if(el)el.classList.remove('on');});
+    const mizushiBtn=document.getElementById('mizushi-filter-btn');if(mizushiBtn){mizushiBtn.textContent='💧 水尻状態 ▾';mizushiBtn.classList.remove('filtered');}
+  }
+  if(m!=='ankyo'){
+    ankyoFilters.clear();ankyoSpecialFilter=false;
+    ['はめ済み','外し済み','なし','未登録'].forEach(s=>{const el=document.getElementById('akyfc-'+s);if(el)el.classList.remove('on');});
+    const ankyoBtn=document.getElementById('ankyo-status-btn');if(ankyoBtn){ankyoBtn.textContent='🕳 暗渠状態 ▾';ankyoBtn.classList.remove('filtered');}
+    const specBtn=document.getElementById('ankyo-special-btn');if(specBtn){specBtn.textContent='🔧 特記事項あり';specBtn.classList.remove('filtered');}
+  }
   // モード別フィルター表示切り替え
   const isMizushi=m==='mizushi';
   const isAnkyo=m==='ankyo';
@@ -1131,8 +1151,12 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(!curUser){const n=prompt('担当者名を入力してください');if(!n){setButtonLoading('savebtn',false,'記録する');return;}curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
       const time=getSelectedTime();
       try{
-        await postToGAS({action:'mizushi_bulk',names:[...multiSelected],status:selStatus,person:curUser,time});
+        if(!bulkStatusSaved){
+          await postToGAS({action:'mizushi_bulk',names:[...multiSelected],status:selStatus,person:curUser,time});
+          bulkStatusSaved=true;
+        }
         await loadRecords();
+        bulkStatusSaved=false;
       }catch(e){alert('保存に失敗しました');setButtonLoading('savebtn',false,'記録する');return;}
       setButtonLoading('savebtn',false,'記録する');clearMultiSelect();closePanel();renderMap();return;
     }
@@ -1143,8 +1167,12 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(!curUser){const n=prompt('担当者名を入力してください');if(!n){setButtonLoading('savebtn',false,'記録する');return;}curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
       const time=getSelectedTime();
       try{
-        await postToGAS({action:'ankyo_operation_bulk',names:[...multiSelected],status:selStatus,person:curUser,time});
+        if(!bulkStatusSaved){
+          await postToGAS({action:'ankyo_operation_bulk',names:[...multiSelected],status:selStatus,person:curUser,time});
+          bulkStatusSaved=true;
+        }
         await loadRecords();
+        bulkStatusSaved=false;
       }catch(e){alert('保存に失敗しました');setButtonLoading('savebtn',false,'記録する');return;}
       setButtonLoading('savebtn',false,'記録する');clearMultiSelect();closePanel();renderMap();return;
     }
