@@ -187,7 +187,7 @@ function initFilters(){
 }
 
 function toggleDropdown(type){
-  const ids={block:'block-menu',crop:'crop-menu',alert:'alert-menu'};
+  const ids={block:'block-menu',crop:'crop-menu',alert:'alert-menu',mizushi_status:'mizushi-status-menu',ankyo_status:'ankyo-status-menu'};
   const menuId=ids[type];
   Object.values(ids).forEach(id=>{if(id!==menuId)document.getElementById(id).classList.remove('open');});
   document.getElementById(menuId).classList.toggle('open');
@@ -196,6 +196,8 @@ document.addEventListener('click',e=>{
   if(!document.getElementById('filter-wrap').contains(e.target))document.getElementById('block-menu').classList.remove('open');
   if(!document.getElementById('crop-wrap').contains(e.target))document.getElementById('crop-menu').classList.remove('open');
   if(!document.getElementById('alert-wrap').contains(e.target))document.getElementById('alert-menu').classList.remove('open');
+  const mw=document.getElementById('mizushi-filter-wrap');if(mw&&!mw.contains(e.target))document.getElementById('mizushi-status-menu')?.classList.remove('open');
+  const aw=document.getElementById('ankyo-filter-wrap');if(aw&&!aw.contains(e.target))document.getElementById('ankyo-status-menu')?.classList.remove('open');
 });
 
 function toggleBlock(c){
@@ -512,7 +514,17 @@ function getLayerStyle(nm,feat){
   const cropHighlight=selCrops.size>0&&cropMatchesFilter(cropName);
   const isHighlighted=blockHighlight||cropHighlight||isSel;
   let opacity=0.75;
-  if(alertFilters.size>0){opacity=matchesAlertFilter(nm)?0.85:0.05;}
+  if(mode==='mizushi'&&mizushiFilters.size>0){
+    const m=mizushiData[nm];const ms=m?m.status:'未記録';
+    opacity=mizushiFilters.has(ms)?0.85:0.05;
+  }else if(mode==='ankyo'&&(ankyoFilters.size>0||ankyoSpecialFilter)){
+    const master=ankyoMaster[nm];
+    let as='未登録';
+    if(master){if(master.hasAnkyo==='なし')as='なし';else{const op=ankyoOpData[nm];as=(!op||op.status==='はめた')?'はめ済み':'外し済み';}}
+    let match=ankyoFilters.size===0||ankyoFilters.has(as);
+    if(ankyoSpecialFilter)match=match&&!!(master&&master.note);
+    opacity=match?0.85:0.05;
+  }else if(alertFilters.size>0){opacity=matchesAlertFilter(nm)?0.85:0.05;}
   else if(selBlocks.size>0||selCrops.size>0){opacity=isHighlighted?0.85:0.18;}
   if(isSel)opacity=0.85;
   let color='#fff',weight=0.8;
@@ -540,7 +552,29 @@ function renderMap(){
     const cropName=(feat.properties.crop||'').trim();
     const inBlock=selBlocks.size===0||selBlocks.has(blockCode);
     const inCrop=cropMatchesFilter(cropName);
-    if(inBlock&&inCrop){
+    // 水尻・暗渠フィルター判定
+    let inModeFilter=true;
+    if(mode==='mizushi'&&mizushiFilters.size>0){
+      const m=mizushiData[nm];
+      const ms=m?m.status:'未記録';
+      inModeFilter=mizushiFilters.has(ms);
+    }
+    if(mode==='ankyo'){
+      if(ankyoFilters.size>0){
+        const master=ankyoMaster[nm];
+        let as='未登録';
+        if(master){
+          if(master.hasAnkyo==='なし')as='なし';
+          else{const op=ankyoOpData[nm];as=(!op||op.status==='はめた')?'はめ済み':'外し済み';}
+        }
+        inModeFilter=ankyoFilters.has(as);
+      }
+      if(ankyoSpecialFilter){
+        const master=ankyoMaster[nm];
+        inModeFilter=inModeFilter&&!!(master&&master.note);
+      }
+    }
+    if(inBlock&&inCrop&&inModeFilter){
       filteredCount++;totalArea+=(parseFloat(feat.properties.area_a)||0);
       // フィルター表示中の圃場のみカウント
       if(col==='#e74c3c'&&mode==='date')a4++;
@@ -659,6 +693,20 @@ function setMode(m){
   ['btn-date','btn-status','btn-mizushi','btn-ankyo'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.classList.toggle('active',id==='btn-'+m);
   });
+  // モード別フィルター表示切り替え
+  const isMizushi=m==='mizushi';
+  const isAnkyo=m==='ankyo';
+  const isNormal=!isMizushi&&!isAnkyo;
+  const cropWrap=document.getElementById('crop-wrap');
+  const alertWrap=document.getElementById('alert-wrap');
+  const mizushiWrap=document.getElementById('mizushi-filter-wrap');
+  const ankyoWrap=document.getElementById('ankyo-filter-wrap');
+  const ankyoSpecialWrap=document.getElementById('ankyo-special-wrap');
+  if(cropWrap)cropWrap.style.display=isNormal?'':'none';
+  if(alertWrap)alertWrap.style.display=isNormal?'':'none';
+  if(mizushiWrap)mizushiWrap.style.display=isMizushi?'':'none';
+  if(ankyoWrap)ankyoWrap.style.display=isAnkyo?'':'none';
+  if(ankyoSpecialWrap)ankyoSpecialWrap.style.display=isAnkyo?'':'none';
   updateLegend();renderMap();
 }
 function updateLegend(){
@@ -1754,4 +1802,50 @@ function openAnkyoMultiPanel(){
   document.getElementById('panel').classList.add('open');
   document.getElementById('overlay').classList.add('on');
   document.getElementById('multi-bar').style.display='none';
+}
+
+// ============================================================
+// 水尻フィルター
+// ============================================================
+function toggleMizushiFilter(status){
+  mizushiFilters.has(status)?mizushiFilters.delete(status):mizushiFilters.add(status);
+  const el=document.getElementById('mfc-'+status);if(el)el.classList.toggle('on',mizushiFilters.has(status));
+  const btn=document.getElementById('mizushi-filter-btn');
+  btn.classList.toggle('filtered',mizushiFilters.size>0);
+  btn.textContent=mizushiFilters.size>0?'💧 水尻状態（'+mizushiFilters.size+'）▾':'💧 水尻状態 ▾';
+  renderMap();
+}
+function resetMizushiFilter(){
+  mizushiFilters.clear();
+  ['設置済み','外し済み','未記録'].forEach(s=>{const el=document.getElementById('mfc-'+s);if(el)el.classList.remove('on');});
+  const btn=document.getElementById('mizushi-filter-btn');
+  if(btn){btn.classList.remove('filtered');btn.textContent='💧 水尻状態 ▾';}
+  document.getElementById('mizushi-status-menu')?.classList.remove('open');
+  renderMap();
+}
+
+// ============================================================
+// 暗渠フィルター
+// ============================================================
+function toggleAnkyoFilter(status){
+  ankyoFilters.has(status)?ankyoFilters.delete(status):ankyoFilters.add(status);
+  const el=document.getElementById('akyfc-'+status);if(el)el.classList.toggle('on',ankyoFilters.has(status));
+  const btn=document.getElementById('ankyo-status-btn');
+  btn.classList.toggle('filtered',ankyoFilters.size>0);
+  btn.textContent=ankyoFilters.size>0?'🌊 暗渠状態（'+ankyoFilters.size+'）▾':'🌊 暗渠状態 ▾';
+  renderMap();
+}
+function resetAnkyoFilter(){
+  ankyoFilters.clear();
+  ['はめ済み','外し済み','なし','未登録'].forEach(s=>{const el=document.getElementById('akyfc-'+s);if(el)el.classList.remove('on');});
+  const btn=document.getElementById('ankyo-status-btn');
+  if(btn){btn.classList.remove('filtered');btn.textContent='🌊 暗渠状態 ▾';}
+  document.getElementById('ankyo-status-menu')?.classList.remove('open');
+  renderMap();
+}
+function toggleAnkyoSpecialFilter(){
+  ankyoSpecialFilter=!ankyoSpecialFilter;
+  const btn=document.getElementById('ankyo-special-btn');
+  if(btn){btn.classList.toggle('filtered',ankyoSpecialFilter);btn.textContent=ankyoSpecialFilter?'⚠️ 特記事項あり ✓':'⚠️ 特記事項あり';}
+  renderMap();
 }

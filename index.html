@@ -48,7 +48,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 .fchk{width:15px;height:15px;border:2px solid #ccc;border-radius:4px;flex-shrink:0;}
 .fchk.on{background:#2C4A1E;border-color:#2C4A1E;}
 .filter-reset{padding:8px 14px;font-size:11px;color:#e74c3c;cursor:pointer;text-align:center;background:#fff8f8;border-top:1px solid #eee;}
-#legend{position:fixed;bottom:76px;right:10px;background:rgba(255,255,255,0.96);border-radius:10px;padding:10px;z-index:994;font-size:11px;box-shadow:0 2px 10px rgba(0,0,0,0.18);}
+#legend{position:fixed;bottom:130px;right:10px;background:rgba(255,255,255,0.96);border-radius:10px;padding:10px;z-index:994;font-size:11px;box-shadow:0 2px 10px rgba(0,0,0,0.18);}
 .leg-item{display:flex;align-items:center;gap:6px;margin-bottom:3px;}
 .leg-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;}
 #stats{position:fixed;bottom:76px;left:10px;background:rgba(255,255,255,0.96);border-radius:10px;padding:8px 12px;z-index:994;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,0.18);}
@@ -190,6 +190,28 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
     </div>
     <div class="filter-reset" onclick="resetAlertFilter()">✕ すべて表示にリセット</div>
   </div>
+</div>
+<div id="mizushi-filter-wrap" style="position:fixed;top:118px;right:10px;z-index:997;display:none;">
+  <button class="filter-toggle" id="mizushi-filter-btn" onclick="toggleDropdown('mizushi_status')">💧 水尻状態 ▾</button>
+  <div class="filter-dropdown" id="mizushi-status-menu">
+    <div class="fopt" onclick="toggleMizushiFilter('設置済み')"><div class="fchk" id="mfc-設置済み"></div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#8e44ad;margin-right:4px;vertical-align:middle;"></span>設置済み</div>
+    <div class="fopt" onclick="toggleMizushiFilter('外し済み')"><div class="fchk" id="mfc-外し済み"></div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e67e22;margin-right:4px;vertical-align:middle;"></span>外し済み</div>
+    <div class="fopt" onclick="toggleMizushiFilter('未記録')"><div class="fchk" id="mfc-未記録"></div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#95a5a6;margin-right:4px;vertical-align:middle;"></span>未記録</div>
+    <div class="filter-reset" onclick="resetMizushiFilter()">✕ すべて表示にリセット</div>
+  </div>
+</div>
+<div id="ankyo-filter-wrap" style="position:fixed;top:118px;right:10px;z-index:997;display:none;">
+  <button class="filter-toggle" id="ankyo-status-btn" onclick="toggleDropdown('ankyo_status')">🌊 暗渠状態 ▾</button>
+  <div class="filter-dropdown" id="ankyo-status-menu">
+    <div class="fopt" onclick="toggleAnkyoFilter('はめ済み')"><div class="fchk" id="akyfc-はめ済み"></div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#2980b9;margin-right:4px;vertical-align:middle;"></span>はめ済み</div>
+    <div class="fopt" onclick="toggleAnkyoFilter('外し済み')"><div class="fchk" id="akyfc-外し済み"></div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e67e22;margin-right:4px;vertical-align:middle;"></span>外し済み</div>
+    <div class="fopt" onclick="toggleAnkyoFilter('なし')"><div class="fchk" id="akyfc-なし"></div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#27ae60;margin-right:4px;vertical-align:middle;"></span>なし</div>
+    <div class="fopt" onclick="toggleAnkyoFilter('未登録')"><div class="fchk" id="akyfc-未登録"></div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#95a5a6;margin-right:4px;vertical-align:middle;"></span>未登録</div>
+    <div class="filter-reset" onclick="resetAnkyoFilter()">✕ すべて表示にリセット</div>
+  </div>
+</div>
+<div id="ankyo-special-wrap" style="position:fixed;top:158px;right:10px;z-index:996;display:none;">
+  <button class="filter-toggle" id="ankyo-special-btn" onclick="toggleAnkyoSpecialFilter()">⚠️ 特記事項あり</button>
 </div>
 <button id="multi-btn" onclick="toggleMultiMode()">☑ 複数選択</button>
 
