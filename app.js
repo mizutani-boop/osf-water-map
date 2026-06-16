@@ -417,7 +417,14 @@ function openMultiPanel(){
   memoInput.type='text';memoInput.className='sub-input';
   memoInput.placeholder='選択圃場に同じメモを一括登録...';
   bulkMemoInputRef=memoInput;
-  memoInput.addEventListener('input',()=>{bulkMemoSaved=false;updateSaveBtnState();});
+  memoInput.addEventListener('input',()=>{
+    bulkMemoSaved=false;updateSaveBtnState();
+    // 登録済み状態のまま新しい文字を打ち始めたらボタンを復活
+    if(memoBtn.disabled&&memoBtn.textContent==='✅ 登録済み'){
+      memoBtn.disabled=false;memoBtn.textContent='⚠️ 一括登録';
+      memoBtn.style.cssText='white-space:nowrap;background:#fff8f0;border-color:#e67e22;color:#e67e22;font-weight:700;';
+    }
+  });
   const memoBtn=document.createElement('button');memoBtn.className='sub-btn';
   memoBtn.textContent='⚠️ 一括登録';
   memoBtn.style.cssText='white-space:nowrap;background:#fff8f0;border-color:#e67e22;color:#e67e22;font-weight:700;';
