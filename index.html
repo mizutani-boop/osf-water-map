@@ -11,18 +11,18 @@
 body{font-family:'Helvetica Neue',Arial,sans-serif;}
 #map{width:100vw;height:100vh;}
 #loading{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(44,74,30,0.9);color:#fff;padding:16px 24px;border-radius:12px;font-size:14px;z-index:9999;}
-#topbar{position:fixed;top:0;left:0;right:0;z-index:1000;background:rgba(44,74,30,0.96);padding:7px 10px;padding-top:max(7px,env(safe-area-inset-top));display:flex;align-items:center;gap:6px;}
-.mode-btn{padding:5px 11px;border:1.5px solid rgba(255,255,255,0.35);border-radius:14px;background:transparent;color:rgba(255,255,255,0.65);font-size:11px;font-weight:600;cursor:pointer;}
+#topbar{position:fixed;top:0;left:0;right:0;z-index:1000;background:rgba(44,74,30,0.96);padding:7px 10px;padding-top:max(7px,env(safe-area-inset-top));display:flex;align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none;}#topbar::-webkit-scrollbar{display:none;}
+.mode-btn{padding:5px 11px;border:1.5px solid rgba(255,255,255,0.35);border-radius:14px;background:transparent;color:rgba(255,255,255,0.65);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;}
 .mode-btn.active{background:rgba(255,255,255,0.22);color:#fff;border-color:#fff;}
-#topbar-right{margin-left:auto;display:flex;align-items:center;gap:6px;}
+#topbar-right{margin-left:auto;display:flex;align-items:center;gap:6px;flex-shrink:0;}
 #refresh-btn{padding:5px 8px;border:1.5px solid rgba(255,255,255,0.35);border-radius:14px;background:transparent;color:rgba(255,255,255,0.65);font-size:12px;cursor:pointer;}
 #last-update{font-size:10px;color:rgba(255,255,255,0.5);white-space:nowrap;}
 #user-btn{padding:5px 10px;border:1.5px solid rgba(255,255,255,0.35);border-radius:14px;background:transparent;color:rgba(255,255,255,0.65);font-size:11px;cursor:pointer;white-space:nowrap;}
-#summary{position:fixed;top:42px;left:0;right:0;z-index:999;background:rgba(255,255,255,0.96);padding:5px 10px;display:flex;gap:7px;overflow-x:auto;font-size:11px;box-shadow:0 2px 5px rgba(0,0,0,0.12);}
+#summary{position:fixed;top:calc(42px + env(safe-area-inset-top, 0px));left:0;right:0;z-index:999;background:rgba(255,255,255,0.96);padding:5px 10px;display:flex;gap:7px;overflow-x:auto;font-size:11px;box-shadow:0 2px 5px rgba(0,0,0,0.12);}
 .sum-item{display:flex;align-items:center;gap:4px;white-space:nowrap;padding:3px 8px;border-radius:10px;background:#f5f5f5;}
 .sum-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 .sum-num{font-weight:700;font-size:13px;}
-#search-wrap{position:fixed;top:78px;left:10px;z-index:998;}
+#search-wrap{position:fixed;top:calc(78px + env(safe-area-inset-top, 0px));left:10px;z-index:998;}
 #search-input{padding:6px 12px;border:1.5px solid #2C4A1E;border-radius:14px;font-size:12px;width:160px;background:rgba(255,255,255,0.96);color:#333;box-shadow:0 2px 6px rgba(0,0,0,0.15);}
 #search-input::placeholder{color:#aaa;}
 #search-results{display:none;position:absolute;left:0;top:36px;background:#fff;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.18);min-width:200px;max-height:50vh;overflow-y:auto;z-index:999;}
@@ -32,11 +32,11 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 .sres-item:active{background:#f5f5f5;}
 .sres-name{font-weight:700;}
 .sres-sub{font-size:10px;color:#888;margin-top:1px;}
-#filter-wrap{position:fixed;top:78px;right:10px;z-index:998;}
-#crop-wrap{position:fixed;top:118px;right:10px;z-index:997;}
-#alert-filter-btn{position:fixed;top:158px;right:10px;z-index:996;padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #e74c3c;border-radius:14px;font-size:12px;font-weight:600;color:#e74c3c;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;}
+#filter-wrap{position:fixed;top:calc(78px + env(safe-area-inset-top, 0px));right:10px;z-index:998;}
+#crop-wrap{position:fixed;top:calc(118px + env(safe-area-inset-top, 0px));right:10px;z-index:997;}
+#alert-filter-btn{position:fixed;top:calc(158px + env(safe-area-inset-top, 0px));right:10px;z-index:996;padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #e74c3c;border-radius:14px;font-size:12px;font-weight:600;color:#e74c3c;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;}
 #alert-filter-btn.active{background:#e74c3c;color:#fff;}
-#multi-btn{position:fixed;top:198px;right:10px;z-index:995;padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #888;border-radius:14px;font-size:12px;font-weight:600;color:#555;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;}
+#multi-btn{position:fixed;top:calc(198px + env(safe-area-inset-top, 0px));right:10px;z-index:995;padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #888;border-radius:14px;font-size:12px;font-weight:600;color:#555;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;}
 #multi-btn.active{background:#f39c12;color:#fff;border-color:#f39c12;}
 .filter-toggle{padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #2C4A1E;border-radius:14px;font-size:12px;font-weight:600;color:#2C4A1E;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;}
 .filter-toggle.filtered{background:#2C4A1E;color:#fff;}
@@ -191,7 +191,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
     <div class="filter-reset" onclick="resetAlertFilter()">✕ すべて表示にリセット</div>
   </div>
 </div>
-<div id="mizushi-filter-wrap" style="position:fixed;top:118px;right:10px;z-index:997;display:none;">
+<div id="mizushi-filter-wrap" style="position:fixed;top:calc(118px + env(safe-area-inset-top, 0px));right:10px;z-index:997;display:none;">
   <button class="filter-toggle" id="mizushi-filter-btn" onclick="toggleDropdown('mizushi_status')">💧 水尻状態 ▾</button>
   <div class="filter-dropdown" id="mizushi-status-menu">
     <div class="fopt" onclick="toggleMizushiFilter('設置済み')"><div class="fchk" id="mfc-設置済み"></div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#8e44ad;margin-right:4px;vertical-align:middle;"></span>設置済み</div>
@@ -200,7 +200,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
     <div class="filter-reset" onclick="resetMizushiFilter()">✕ すべて表示にリセット</div>
   </div>
 </div>
-<div id="ankyo-filter-wrap" style="position:fixed;top:118px;right:10px;z-index:997;display:none;">
+<div id="ankyo-filter-wrap" style="position:fixed;top:calc(118px + env(safe-area-inset-top, 0px));right:10px;z-index:997;display:none;">
   <button class="filter-toggle" id="ankyo-status-btn" onclick="toggleDropdown('ankyo_status')">🕳 暗渠状態 ▾</button>
   <div class="filter-dropdown" id="ankyo-status-menu">
     <div class="fopt" onclick="toggleAnkyoFilter('はめ済み')"><div class="fchk" id="akyfc-はめ済み"></div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#2980b9;margin-right:4px;vertical-align:middle;"></span>はめ済み</div>
@@ -210,7 +210,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
     <div class="filter-reset" onclick="resetAnkyoFilter()">✕ すべて表示にリセット</div>
   </div>
 </div>
-<div id="ankyo-special-wrap" style="position:fixed;top:158px;right:10px;z-index:996;display:none;">
+<div id="ankyo-special-wrap" style="position:fixed;top:calc(158px + env(safe-area-inset-top, 0px));right:10px;z-index:996;display:none;">
   <button class="filter-toggle" id="ankyo-special-btn" onclick="toggleAnkyoSpecialFilter()">🔧 特記事項あり</button>
 </div>
 <button id="multi-btn" onclick="toggleMultiMode()">☑ 複数選択</button>
