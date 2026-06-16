@@ -133,7 +133,7 @@ function buildLayers(){
 
     // レイヤー生成（クリックイベントもここで1回バインド）
     const layer=L.geoJSON(feat,{
-      style:{color:'#fff',weight:0.8,fillColor:'#95a5a6',fillOpacity:0.75}
+      style:{color:'#fff',weight:0.8,fillColor:'#95a5a6',fillOpacity:0.75,fill:true}
     }).on('click',()=>multiMode?toggleFieldSelect(nm):openPanel(feat)).addTo(map);
     layers[nm]=layer;
 
@@ -432,8 +432,12 @@ function openMultiPanel(){
       }
       await loadRecords();
       bulkMemoSaved=false;
+      // パネルを閉じず踏みとどまる（草刈りボタンと同じ動線）
+      memoInput.value='';
+      memoBtn.textContent='✅ 登録済み';
+      memoBtn.style.cssText='white-space:nowrap;background:#95a5a6;border-color:#95a5a6;color:#fff;font-weight:700;cursor:not-allowed;';
+      memoBtn.disabled=true;
     }catch(e){alert('メモ一括登録の保存に失敗しました。電波の良い場所で再度お試しください。');memoBtn.disabled=false;memoBtn.textContent='⚠️ 一括登録';return;}
-    closePanel();clearMultiSelect();renderMap();
   });
   memoWrap.appendChild(memoInput);memoWrap.appendChild(memoBtn);
   bulkExtra.appendChild(memoWrap);
@@ -494,7 +498,7 @@ function getLayerStyle(nm,feat){
   if(isSel){color='#f39c12';weight=3;}
   else if(alertFilters.size>0&&matchesAlertFilter(nm)){color='#e74c3c';weight=2.5;}
   else if(isHighlighted&&!alertFilters.size){color='#e74c3c';weight=2.5;}
-  return{color,weight,fillColor:col,fillOpacity:opacity};
+  return{color,weight,fillColor:col,fillOpacity:opacity,fill:true};
 }
 
 // ============================================================
@@ -506,7 +510,6 @@ function renderMap(){
 
   fieldFeatureMap.forEach((feat,nm)=>{
     const col=fieldColor(nm);
-    if(col==='#e74c3c'&&mode==='date')a4++;
 
     // [NEW] レイヤーは setStyle のみ（removeLayer/addLayer なし）
     const layer=layers[nm];
@@ -516,7 +519,11 @@ function renderMap(){
     const cropName=(feat.properties.crop||'').trim();
     const inBlock=selBlocks.size===0||selBlocks.has(blockCode);
     const inCrop=cropMatchesFilter(cropName);
-    if(inBlock&&inCrop){filteredCount++;totalArea+=(parseFloat(feat.properties.area_a)||0);}
+    if(inBlock&&inCrop){
+      filteredCount++;totalArea+=(parseFloat(feat.properties.area_a)||0);
+      // フィルター表示中の圃場のみカウント
+      if(col==='#e74c3c'&&mode==='date')a4++;
+    }
 
     // [NEW] マーカーは着脱式（hasLayerチェック付き）
     const mk=markers[nm];
