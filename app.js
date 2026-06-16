@@ -555,7 +555,16 @@ function updateSummary(){
   if(!GJ)return;
   if(mode==='crop'){
     const cnt={};
-    GJ.features.forEach(f=>{const g=getCropGroup(f.properties.crop||'');cnt[g.label]=(cnt[g.label]||0)+1;});
+    GJ.features.forEach(f=>{
+      // フィルター連動
+      const blockCode=(f.properties.field_id||'').replace(/-.*/, '');
+      const cropName=(f.properties.crop||'').trim();
+      const inBlock=selBlocks.size===0||selBlocks.has(blockCode);
+      const inCrop=cropMatchesFilter(cropName);
+      if(!inBlock||!inCrop)return;
+      const g=getCropGroup(f.properties.crop||'');
+      cnt[g.label]=(cnt[g.label]||0)+1;
+    });
     document.getElementById('summary').innerHTML=CROP_GROUPS.filter(g=>cnt[g.label]>0).map(g=>
       '<div class="sum-item"><div class="sum-dot" style="background:'+g.color+'"></div>'+g.label+' <span class="sum-num">'+cnt[g.label]+'</span></div>'
     ).join('');return;
@@ -577,7 +586,17 @@ function updateSummary(){
     const status=r.status==='除草剤投入'?'止水':r.status;
     if(cnt[status]!==undefined){cnt[status]++;}else{cnt[status]=1;}
   });
-  const d4=Object.values(records).filter(r=>!herbActive(r)&&(Date.now()-new Date(r.time).getTime())/86400000>=4).length;
+  // フィルター表示中の圃場のみ4日超をカウント
+  let d4=0;
+  fieldFeatureMap.forEach((feat,nm)=>{
+    const blockCode=(feat.properties.field_id||'').replace(/-.*/, '');
+    const cropName=(feat.properties.crop||'').trim();
+    const inBlock=selBlocks.size===0||selBlocks.has(blockCode);
+    const inCrop=cropMatchesFilter(cropName);
+    if(!inBlock||!inCrop)return;
+    const r=records[nm];
+    if(r&&!herbActive(r)&&(Date.now()-new Date(r.time).getTime())/86400000>=4)d4++;
+  });
   // S_OPTSの順番でサマリーを動的生成
   const items=[{l:'未記録',c:'#95a5a6',n:unr}];
   S_OPTS.forEach(opt=>{
