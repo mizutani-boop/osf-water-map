@@ -1123,18 +1123,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('task-input').addEventListener('input',()=>{singleSaved=false;updateSaveBtnState();});
 
   document.getElementById('savebtn').addEventListener('click',async()=>{
-    // 水尻・暗渠モードは専用処理
-    if(mode==='mizushi'||mode==='ankyo'){await saveMizushiOrAnkyo();return;}
-    const memoInput=document.getElementById('task-input');
-    const memoText=memoInput?memoInput.value.trim():'';
-    const hasMemoToAdd=memoText.length>0;
-
-    if(!selStatus&&!pendingKusa&&!hasMemoToAdd){
-      const ov=document.getElementById('overlay');ov.style.pointerEvents='none';
-      alert('水の状態を選択するか、草刈りアラートを変更するか、メモを入力してください');
-      setTimeout(()=>ov.style.pointerEvents='',100);return;
-    }
-
+    // 一括処理を最優先で判定（早期returnより前に置く）
     // 水尻一括
     if(mode==='mizushi'&&multiSelected.size>0&&selField===null){
       if(!selStatus)return;
@@ -1159,6 +1148,19 @@ document.addEventListener('DOMContentLoaded',()=>{
       }catch(e){alert('保存に失敗しました');setButtonLoading('savebtn',false,'記録する');return;}
       setButtonLoading('savebtn',false,'記録する');clearMultiSelect();closePanel();renderMap();return;
     }
+    // 水尻・暗渠単件処理（一括判定をすり抜けた場合）
+    if(mode==='mizushi'||mode==='ankyo'){await saveMizushiOrAnkyo();return;}
+
+    const memoInput=document.getElementById('task-input');
+    const memoText=memoInput?memoInput.value.trim():'';
+    const hasMemoToAdd=memoText.length>0;
+
+    if(!selStatus&&!pendingKusa&&!hasMemoToAdd){
+      const ov=document.getElementById('overlay');ov.style.pointerEvents='none';
+      alert('水の状態を選択するか、草刈りアラートを変更するか、メモを入力してください');
+      setTimeout(()=>ov.style.pointerEvents='',100);return;
+    }
+
     if(multiSelected.size>0&&selField===null){
       const bulkMemoText=bulkMemoInputRef?bulkMemoInputRef.value.trim():'';
 
@@ -1744,14 +1746,18 @@ async function saveMizushiOrAnkyo(){
   const time=getSelectedTime();
   setButtonLoading('savebtn',true);
   try{
-    if(mode==='mizushi'){
-      await postToGAS({action:'mizushi_save',name:nm,status:selStatus,person:curUser,time});
-    }else if(mode==='ankyo'){
-      await postToGAS({action:'ankyo_operation_save',name:nm,status:selStatus,person:curUser,time});
+    if(!singleSaved){
+      if(mode==='mizushi'){
+        await postToGAS({action:'mizushi_save',name:nm,status:selStatus,person:curUser,time});
+      }else if(mode==='ankyo'){
+        await postToGAS({action:'ankyo_operation_save',name:nm,status:selStatus,person:curUser,time});
+      }
+      singleSaved=true;
     }
     await loadRecords();
   }catch(e){alert('保存に失敗しました');setButtonLoading('savebtn',false,'記録する');return;}
   setButtonLoading('savebtn',false,'記録する');
+  singleSaved=false;
   closePanel();
 }
 
