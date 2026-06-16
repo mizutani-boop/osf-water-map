@@ -114,7 +114,7 @@ function initMap(){
   // [NEW] Canvas レンダラー追加（SVG→Canvas で380枚が1枚の画像として描画）
   map=L.map('map',{zoomControl:false,renderer:L.canvas()}).setView([35.465,134.19],13);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CARTO',maxZoom:19,crossOrigin:true}).addTo(map);
-  L.control.zoom({position:'bottomright'}).addTo(map);
+  // ズームコントロール非表示（2本指ズームで操作）
   const locCtrl=L.control({position:'bottomright'});
   locCtrl.onAdd=function(){
     const d=L.DomUtil.create('div','leaflet-bar leaflet-control');
