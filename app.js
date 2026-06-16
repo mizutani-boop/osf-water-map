@@ -160,7 +160,7 @@ function buildLayers(){
           const lbl=L.marker(center,{
             icon:L.divIcon({
               className:'',
-              html:'<div style="font-size:9px;font-weight:700;color:#fff;background:rgba(0,0,0,0.55);padding:1px 4px;border-radius:4px;white-space:nowrap;pointer-events:none;">'+fid+'</div>',
+              html:'<div style="font-size:9px;font-weight:700;color:#fff;background:rgba(0,0,0,0.65);padding:1px 5px;border-radius:4px;white-space:nowrap;pointer-events:none;text-shadow:0 0 2px #000,0 0 2px #000;">'+fid+'</div>',
               iconAnchor:[0,0]
             }),
             interactive:false
