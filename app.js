@@ -1248,8 +1248,7 @@ function openAdminSection(sectionId, modal, box) {
 }
 
 async function confirmMizushiInit(modal) {
-  if (!confirm('全圃場（'+GJ.features.length+'枚）の水尻を「設置済み」として一括登録します。
-よろしいですか？')) return;
+  if (!confirm('全圃場（'+GJ.features.length+'枚）の水尻を「設置済み」として一括登録します。\nよろしいですか？')) return;
   if (!curUser) { const n = prompt('担当者名を入力してください'); if (!n) return; curUser = n; localStorage.setItem('osf_user', n); document.getElementById('ulabel').textContent = n; }
   const time = new Date().toISOString();
   const names = GJ.features.map(f => f.properties.name.trim());
