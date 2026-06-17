@@ -527,6 +527,7 @@ function hasAlert(nm){return hasKusaAlert(nm)||hasMemoAlert(nm);}
 function getLayerStyle(nm,feat,modeFilterMatch,statusFilterMatch){
   const col=fieldColor(nm);
   const isSel=multiSelected.has(nm);
+  const isCurrent=!!(selField&&selField.properties&&selField.properties.name.trim()===nm);
   const blockCode=feat?(feat.properties.field_id||'').replace(/-.*/, ''):'';
   const cropName=feat?(feat.properties.crop||'').trim():'';
   const blockHighlight=selBlocks.size>0&&selBlocks.has(blockCode);
@@ -557,9 +558,10 @@ function getLayerStyle(nm,feat,modeFilterMatch,statusFilterMatch){
     }else if(alertFilters.size>0){opacity=matchesAlertFilter(nm)?0.85:0.05;}
     else if(selBlocks.size>0||selCrops.size>0){opacity=isHighlighted?0.85:0.18;}
   }
-  if(isSel)opacity=0.85;
+  if(isSel||isCurrent)opacity=0.9;
   let color='#fff',weight=0.8;
   if(isSel){color='#f39c12';weight=3;}
+  else if(isCurrent){color='#f39c12';weight=4;}
   else if((mode==='mizushi'||mode==='ankyo')&&modeFilterMatch===true){color='#2C4A1E';weight=2;}
   else if((mode==='date'||mode==='status')&&statusFilterMatch===true){color='#2C4A1E';weight=2;}
   else if(statusFilters.size>0&&statusFilterMatch===false){color='#fff';weight=0.8;}
@@ -1049,6 +1051,9 @@ function openPanel(feat){
   document.getElementById('panel').classList.add('open');
   document.getElementById('overlay').classList.add('on');
   setTimeout(()=>{if(map)map.panBy([0,150],{animate:true,duration:0.3});},50);
+  // 選択圃場を即時ハイライト
+  const selNm=feat.properties.name.trim();
+  if(layers[selNm])layers[selNm].setStyle(getLayerStyle(selNm,feat));
   updateSaveBtnState();
 }
 
@@ -1098,7 +1103,10 @@ function toggleHist(){
 function closePanel(){
   document.getElementById('panel').classList.remove('open');
   document.getElementById('overlay').classList.remove('on');
-  exitEditMode();selField=null;pendingKusa=null;singleSaved=false;bulkKusaSaved=false;
+  exitEditMode();
+  // ハイライト解除
+  if(selField){const nm=selField.properties.name.trim();const feat=fieldFeatureMap.get(nm);if(layers[nm]&&feat)layers[nm].setStyle(getLayerStyle(nm,feat));}
+  selField=null;pendingKusa=null;singleSaved=false;bulkKusaSaved=false;
   if(bulkMemoInputRef){bulkMemoInputRef.value='';bulkMemoInputRef=null;}
   bulkStatusSaved=false;bulkMemoSaved=false;bulkConfirmSaved=false;
   document.getElementById('multi-banner').style.display='none';
