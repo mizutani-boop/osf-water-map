@@ -996,6 +996,16 @@ function openPanel(feat){
   const memoBadge=document.getElementById('memo-badge-btn');
   if(kusaBadge)kusaBadge.classList.remove('active');
   if(memoBadge)memoBadge.classList.remove('active');
+  // アラートがある場合は自動展開
+  const fieldNm=feat.properties.name.trim();
+  if(hasKusaAlert(fieldNm)){
+    document.getElementById('kusa-section').style.display='block';
+    if(kusaBadge){kusaBadge.classList.add('active');kusaBadge.style.background='#27ae60';kusaBadge.style.color='#fff';}
+  }
+  if(hasMemoAlert(fieldNm)){
+    document.getElementById('task-section').style.display='block';
+    if(memoBadge){memoBadge.classList.add('active');memoBadge.style.background='#e67e22';memoBadge.style.color='#fff';}
+  }
   document.getElementById('bulk-extra').innerHTML='';
   updateKusaUI(p.name.trim());
   updateMemoUI(p.name.trim());
@@ -1047,7 +1057,7 @@ function openPanel(feat){
   }else{hs.style.display='none';}
   document.getElementById('panel').classList.add('open');
   document.getElementById('overlay').classList.add('on');
-  setTimeout(()=>{if(map)map.panBy([0,150],{animate:true,duration:0.3});},50);
+  setTimeout(()=>{focusOnFeature(feat);},50);
   // 選択圃場を即時ハイライト
   const selNm=feat.properties.name.trim();
   if(layers[selNm])layers[selNm].setStyle(getLayerStyle(selNm,feat));
@@ -1674,7 +1684,7 @@ function openMizushiPanel(feat){
   document.getElementById('savebtn').disabled=true;
   document.getElementById('panel').classList.add('open');
   document.getElementById('overlay').classList.add('on');
-  setTimeout(()=>{if(map)map.panBy([0,150],{animate:true,duration:0.3});},50);
+  setTimeout(()=>{focusOnFeature(feat);},50);
 }
 
 // ============================================================
@@ -1764,7 +1774,7 @@ function openAnkyoPanel(feat){
 
   document.getElementById('panel').classList.add('open');
   document.getElementById('overlay').classList.add('on');
-  setTimeout(()=>{if(map)map.panBy([0,150],{animate:true,duration:0.3});},50);
+  setTimeout(()=>{focusOnFeature(feat);},50);
 }
 
 // 暗渠登録・編集フォーム
@@ -2099,4 +2109,18 @@ function toggleBadgeSection(type){
     btn.style.background='#fff';
     btn.style.color=type==='kusa'?'#27ae60':'#e67e22';
   }
+}
+
+// ============================================================
+// 圃場を画面の見やすい位置にスマートにセンタリング
+// ============================================================
+function focusOnFeature(feat){
+  if(!map||!feat)return;
+  try{
+    const center=L.geoJSON(feat).getBounds().getCenter();
+    const pt=map.project(center,map.getZoom());
+    pt.y+=120; // パネルの上・ヘッダーの下のゴールデンゾーンへ
+    const newCenter=map.unproject(pt,map.getZoom());
+    map.panTo(newCenter,{animate:true,duration:0.3});
+  }catch(e){}
 }
