@@ -959,18 +959,15 @@ function updateSaveBtnState(){
   const canSave=!!(selStatus||pendingKusa||hasMemoText||hasBulkMemo);
   btn.disabled=!canSave;
   // カメレオン化：選択した水状態に応じてボタンの色・テキストを変更
-  if(selStatus&&selStatus!=='確認のみ'&&!pendingKusa&&!hasMemoText&&!hasBulkMemo){
+  if(selStatus&&selStatus!=='確認のみ'){
     const col=S_COL[selStatus]||'#2C4A1E';
-    btn.style.background=col;
-    btn.style.borderColor=col;
+    btn.style.background=col;btn.style.borderColor=col;btn.style.color='#fff';
     btn.textContent='✓ '+selStatus+'を記録する';
   }else if(selStatus==='確認のみ'){
-    btn.style.background='#95a5a6';
-    btn.style.borderColor='#95a5a6';
+    btn.style.background='#95a5a6';btn.style.borderColor='#95a5a6';btn.style.color='#fff';
     btn.textContent='✓ 確認のみ記録する';
   }else{
-    btn.style.background='';
-    btn.style.borderColor='';
+    btn.style.background='';btn.style.borderColor='';btn.style.color='';
     btn.textContent='記録する';
   }
 }
@@ -1105,8 +1102,10 @@ function closePanel(){
   document.getElementById('overlay').classList.remove('on');
   exitEditMode();
   // ハイライト解除
-  if(selField){const nm=selField.properties.name.trim();const feat=fieldFeatureMap.get(nm);if(layers[nm]&&feat)layers[nm].setStyle(getLayerStyle(nm,feat));}
-  selField=null;pendingKusa=null;singleSaved=false;bulkKusaSaved=false;
+  const prevField=selField;
+  selField=null; // 先にnullにしてからsetStyle（ハイライト解除のため）
+  if(prevField){const nm=prevField.properties.name.trim();const feat=fieldFeatureMap.get(nm);if(layers[nm]&&feat)layers[nm].setStyle(getLayerStyle(nm,feat));}
+  pendingKusa=null;singleSaved=false;bulkKusaSaved=false;
   if(bulkMemoInputRef){bulkMemoInputRef.value='';bulkMemoInputRef=null;}
   bulkStatusSaved=false;bulkMemoSaved=false;bulkConfirmSaved=false;
   document.getElementById('multi-banner').style.display='none';
