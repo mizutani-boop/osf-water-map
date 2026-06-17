@@ -34,9 +34,9 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 .sres-sub{font-size:10px;color:#888;margin-top:1px;}
 #filter-wrap{position:fixed;top:calc(78px + env(safe-area-inset-top, 0px));right:10px;z-index:998;}
 #crop-wrap{position:fixed;top:calc(118px + env(safe-area-inset-top, 0px));right:10px;z-index:997;}
-#alert-filter-btn{position:fixed;top:calc(158px + env(safe-area-inset-top, 0px));right:10px;z-index:996;padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #e74c3c;border-radius:14px;font-size:12px;font-weight:600;color:#e74c3c;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;}
+#alert-filter-btn{position:fixed;top:calc(198px + env(safe-area-inset-top, 0px));right:10px;z-index:996;padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #e74c3c;border-radius:14px;font-size:12px;font-weight:600;color:#e74c3c;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;}
 #alert-filter-btn.active{background:#e74c3c;color:#fff;}
-#multi-btn{position:fixed;top:calc(198px + env(safe-area-inset-top, 0px));right:10px;z-index:995;padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #888;border-radius:14px;font-size:12px;font-weight:600;color:#555;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;}
+#multi-btn{position:fixed;top:calc(238px + env(safe-area-inset-top, 0px));right:10px;z-index:995;padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #888;border-radius:14px;font-size:12px;font-weight:600;color:#555;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;}
 #multi-btn.active{background:#f39c12;color:#fff;border-color:#f39c12;}
 .filter-toggle{padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #2C4A1E;border-radius:14px;font-size:12px;font-weight:600;color:#2C4A1E;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;}
 .filter-toggle.filtered{background:#2C4A1E;color:#fff;}
@@ -166,11 +166,11 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
     <div class="filter-reset" onclick="resetFilter('crop')">✕ すべて表示にリセット</div>
   </div>
 </div>
-<div id="status-filter-wrap" style="position:fixed;top:calc(118px + env(safe-area-inset-top, 0px));right:10px;z-index:997;display:none;">
+<div id="status-filter-wrap" style="position:fixed;top:calc(158px + env(safe-area-inset-top, 0px));right:10px;z-index:997;display:none;">
   <button class="filter-toggle" id="status-filter-btn" onclick="toggleDropdown('status_filter')">💧 水状態 ▾</button>
   <div class="filter-dropdown" id="status-filter-menu"></div>
 </div>
-<div id="alert-wrap" style="position:fixed;top:158px;right:10px;z-index:996;">
+<div id="alert-wrap" style="position:fixed;top:calc(198px + env(safe-area-inset-top, 0px));right:10px;z-index:996;">
   <button class="filter-toggle" id="alert-toggle-btn" onclick="toggleDropdown('alert')">🚨 アラート ▾</button>
   <div class="filter-dropdown" id="alert-menu">
     <div class="fopt" onclick="toggleAlertFilter('kusa_new')">
@@ -214,11 +214,11 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
     <div class="filter-reset" onclick="resetAnkyoFilter()">✕ すべて表示にリセット</div>
   </div>
 </div>
-<div id="ankyo-special-wrap" style="position:fixed;top:calc(158px + env(safe-area-inset-top, 0px));right:10px;z-index:996;display:none;">
+<div id="ankyo-special-wrap" style="position:fixed;top:calc(198px + env(safe-area-inset-top, 0px));right:10px;z-index:996;display:none;">
   <button class="filter-toggle" id="ankyo-special-btn" onclick="toggleAnkyoSpecialFilter()">🔧 特記事項あり</button>
 </div>
 <button id="multi-btn" onclick="toggleMultiMode()">☑ 複数選択</button>
-<button id="fieldid-btn" onclick="toggleFieldIdLabels()" style="position:fixed;top:calc(238px + env(safe-area-inset-top, 0px));right:10px;z-index:995;padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #888;border-radius:14px;font-size:12px;font-weight:600;color:#555;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;"># 番号表示</button>
+<button id="fieldid-btn" onclick="toggleFieldIdLabels()" style="position:fixed;top:calc(278px + env(safe-area-inset-top, 0px));right:10px;z-index:995;padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #888;border-radius:14px;font-size:12px;font-weight:600;color:#555;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;"># 番号表示</button>
 
 <div id="legend"></div>
 <div id="stats">圃場 <b id="tc">-</b> 枚<br><span id="area-total"></span><br><span id="ac" style="color:#e74c3c"></span></div>

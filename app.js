@@ -773,7 +773,7 @@ function setMode(m){
   if(cropWrap)cropWrap.style.display=isNormal?'':'none';
   if(alertWrap)alertWrap.style.display=isNormal?'':'none';
   if(statusFilterWrap)statusFilterWrap.style.display=isNormal?'':'none';
-  if(isNormal)buildStatusFilterMenu();
+  if(isNormal){buildStatusFilterMenu();}
   if(mizushiWrap)mizushiWrap.style.display=isMizushi?'':'none';
   if(ankyoWrap)ankyoWrap.style.display=isAnkyo?'':'none';
   if(ankyoSpecialWrap)ankyoSpecialWrap.style.display=isAnkyo?'':'none';
@@ -1981,7 +1981,8 @@ function toggleAnkyoSpecialFilter(){
 // ============================================================
 function buildStatusFilterMenu(){
   const menu=document.getElementById('status-filter-menu');
-  if(!menu||menu.children.length>0)return; // 既に構築済みなら不要
+  if(!menu)return;
+  menu.innerHTML=''; // 毎回再構築（S_OPTSが変わっても追従）
   menu.innerHTML='';
   const allStatuses=['未記録',...S_OPTS.filter(s=>s!=='確認のみ')];
   allStatuses.forEach(s=>{
