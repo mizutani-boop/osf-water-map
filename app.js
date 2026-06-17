@@ -532,12 +532,12 @@ function getLayerStyle(nm,feat,modeFilterMatch,statusFilterMatch){
   const blockHighlight=selBlocks.size>0&&selBlocks.has(blockCode);
   const cropHighlight=selCrops.size>0&&cropMatchesFilter(cropName);
   const isHighlighted=blockHighlight||cropHighlight||isSel;
-  // modeFilterMatchが渡された場合はそれを使う（renderMapからの呼び出し時は二重計算防止）
   let opacity=0.75;
-  if(modeFilterMatch!==undefined){
-    // 水尻・暗渠フィルター
+  if(modeFilterMatch!==undefined||statusFilterMatch!==undefined){
     if((mode==='mizushi'&&mizushiFilters.size>0)||(mode==='ankyo'&&(ankyoFilters.size>0||ankyoSpecialFilter))){
       opacity=modeFilterMatch?0.85:0.05;
+    }else if(statusFilters.size>0&&(mode==='date'||mode==='status')){
+      opacity=statusFilterMatch?0.85:0.05;
     }else if(alertFilters.size>0){opacity=matchesAlertFilter(nm)?0.85:0.05;}
     else if(selBlocks.size>0||selCrops.size>0){opacity=isHighlighted?0.85:0.18;}
   }else{
@@ -551,6 +551,9 @@ function getLayerStyle(nm,feat,modeFilterMatch,statusFilterMatch){
       let match=ankyoFilters.size===0||ankyoFilters.has(as);
       if(ankyoSpecialFilter)match=match&&!!(master&&master.note);
       opacity=match?0.85:0.05;
+    }else if(statusFilters.size>0&&(mode==='date'||mode==='status')){
+      const r=records[nm];const st=r?r.status:'未記録';
+      opacity=statusFilters.has(st)?0.85:0.05;
     }else if(alertFilters.size>0){opacity=matchesAlertFilter(nm)?0.85:0.05;}
     else if(selBlocks.size>0||selCrops.size>0){opacity=isHighlighted?0.85:0.18;}
   }
@@ -558,6 +561,8 @@ function getLayerStyle(nm,feat,modeFilterMatch,statusFilterMatch){
   let color='#fff',weight=0.8;
   if(isSel){color='#f39c12';weight=3;}
   else if((mode==='mizushi'||mode==='ankyo')&&modeFilterMatch===true){color='#2C4A1E';weight=2;}
+  else if((mode==='date'||mode==='status')&&statusFilterMatch===true){color='#2C4A1E';weight=2;}
+  else if(statusFilters.size>0&&statusFilterMatch===false){color='#fff';weight=0.8;}
   else if(alertFilters.size>0&&matchesAlertFilter(nm)){color='#e74c3c';weight=2.5;}
   else if(isHighlighted&&!alertFilters.size){color='#e74c3c';weight=2.5;}
   return{color,weight,fillColor:col,fillOpacity:opacity,fill:true};
