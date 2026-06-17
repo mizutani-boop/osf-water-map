@@ -1027,6 +1027,7 @@ function openPanel(feat){
   }else{hs.style.display='none';}
   document.getElementById('panel').classList.add('open');
   document.getElementById('overlay').classList.add('on');
+  setTimeout(()=>{if(map)map.panBy([0,150],{animate:true,duration:0.3});},50);
   updateSaveBtnState();
 }
 
@@ -1212,7 +1213,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         await loadRecords();
         bulkStatusSaved=false;
       }catch(e){alert('保存に失敗しました');setButtonLoading('savebtn',false,'記録する');return;}
-      setButtonLoading('savebtn',false,'記録する');clearMultiSelect();closePanel();renderMap();return;
+      setButtonLoading('savebtn',false,'記録する');clearMultiSelect();closePanel();renderMap();showToast('✅ 一括記録を保存しました');return;
     }
     // 暗渠一括
     if(mode==='ankyo'&&multiSelected.size>0&&selField===null){
@@ -1228,7 +1229,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         await loadRecords();
         bulkStatusSaved=false;
       }catch(e){alert('保存に失敗しました');setButtonLoading('savebtn',false,'記録する');return;}
-      setButtonLoading('savebtn',false,'記録する');clearMultiSelect();closePanel();renderMap();return;
+      setButtonLoading('savebtn',false,'記録する');clearMultiSelect();closePanel();renderMap();showToast('✅ 一括記録を保存しました');return;
     }
     // 水尻・暗渠単件処理（一括判定をすり抜けた場合）
     if(mode==='mizushi'||mode==='ankyo'){await saveMizushiOrAnkyo();return;}
@@ -1269,7 +1270,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         await loadRecords();
         bulkStatusSaved=false;bulkMemoSaved=false;
       }catch(e){alert('保存に失敗しました。電波の良い場所で再度「記録する」を押してください。');setButtonLoading('savebtn',false,'記録する');return;}
-      setButtonLoading('savebtn',false,'記録する');clearMultiSelect();closePanel();renderMap();return;
+      setButtonLoading('savebtn',false,'記録する');clearMultiSelect();closePanel();renderMap();showToast('✅ 一括記録を保存しました');return;
     }
 
     if(!selField)return;
@@ -1311,6 +1312,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     setButtonLoading('savebtn',false,'記録する');
     pendingKusa=null;
     closePanel();
+    showToast('✅ 記録を保存しました');
   });
 
   document.getElementById('edit-savebtn').addEventListener('click',async()=>{
@@ -1322,7 +1324,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       await loadRecords();
     }
     catch(e){alert('保存に失敗しました');setButtonLoading('edit-savebtn',false,'✏ 修正を保存');return;}
-    setButtonLoading('edit-savebtn',false,'✏ 修正を保存');closePanel();
+    setButtonLoading('edit-savebtn',false,'✏ 修正を保存');closePanel();showToast('✅ 修正を保存しました');
   });
   document.getElementById('overlay').addEventListener('click',()=>closePanel());
   document.getElementById('ulabel').textContent=curUser||'未設定';
@@ -1644,6 +1646,7 @@ function openMizushiPanel(feat){
   document.getElementById('savebtn').disabled=true;
   document.getElementById('panel').classList.add('open');
   document.getElementById('overlay').classList.add('on');
+  setTimeout(()=>{if(map)map.panBy([0,150],{animate:true,duration:0.3});},50);
 }
 
 // ============================================================
@@ -1733,6 +1736,7 @@ function openAnkyoPanel(feat){
 
   document.getElementById('panel').classList.add('open');
   document.getElementById('overlay').classList.add('on');
+  setTimeout(()=>{if(map)map.panBy([0,150],{animate:true,duration:0.3});},50);
 }
 
 // 暗渠登録・編集フォーム
@@ -1873,6 +1877,7 @@ async function saveMizushiOrAnkyo(){
   setButtonLoading('savebtn',false,'記録する');
   singleSaved=false;
   closePanel();
+  showToast('✅ 記録を保存しました');
 }
 
 // ============================================================
@@ -2028,4 +2033,21 @@ function resetStatusFilter(){
   if(btn){btn.classList.remove('filtered');btn.textContent='💧 水状態 ▾';}
   document.getElementById('status-filter-menu')?.classList.remove('open');
   renderMap();
+}
+
+// ============================================================
+// トースト通知
+// ============================================================
+function showToast(msg){
+  let toast=document.getElementById('toast-msg');
+  if(!toast){
+    toast=document.createElement('div');
+    toast.id='toast-msg';
+    toast.style.cssText='position:fixed;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(39,174,96,0.95);color:#fff;padding:12px 24px;border-radius:30px;font-size:14px;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,0.25);z-index:9999;opacity:0;pointer-events:none;transition:opacity 0.3s ease;white-space:nowrap;';
+    document.body.appendChild(toast);
+  }
+  toast.textContent=msg;
+  clearTimeout(toast._timer);
+  setTimeout(()=>{toast.style.opacity='1';},10);
+  toast._timer=setTimeout(()=>{toast.style.opacity='0';},3000);
 }
