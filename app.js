@@ -39,6 +39,7 @@ function cleanCropName(name) {
 
 let records={},allHist=[],kusaData={},memoData={},memoHistAll=[];
 let mizushiData={},ankyoMaster={},ankyoOpData={};
+let statusFilters=new Set();
 let mode='date',selBlocks=new Set(),selCrops=new Set(),alertFilters=new Set(),mizushiFilters=new Set(),ankyoFilters=new Set(),ankyoSpecialFilter=false;
 
 // ============================================================
@@ -204,7 +205,7 @@ function initFilters(){
 }
 
 function toggleDropdown(type){
-  const ids={block:'block-menu',crop:'crop-menu',alert:'alert-menu',mizushi_status:'mizushi-status-menu',ankyo_status:'ankyo-status-menu'};
+  const ids={block:'block-menu',crop:'crop-menu',alert:'alert-menu',mizushi_status:'mizushi-status-menu',ankyo_status:'ankyo-status-menu',status_filter:'status-filter-menu'};
   const menuId=ids[type];
   Object.values(ids).forEach(id=>{if(id!==menuId)document.getElementById(id).classList.remove('open');});
   document.getElementById(menuId).classList.toggle('open');
@@ -215,6 +216,7 @@ document.addEventListener('click',e=>{
   if(!document.getElementById('alert-wrap').contains(e.target))document.getElementById('alert-menu').classList.remove('open');
   const mw=document.getElementById('mizushi-filter-wrap');if(mw&&!mw.contains(e.target))document.getElementById('mizushi-status-menu')?.classList.remove('open');
   const aw=document.getElementById('ankyo-filter-wrap');if(aw&&!aw.contains(e.target))document.getElementById('ankyo-status-menu')?.classList.remove('open');
+  const sw=document.getElementById('status-filter-wrap');if(sw&&!sw.contains(e.target))document.getElementById('status-filter-menu')?.classList.remove('open');
 });
 
 function toggleBlock(c){
@@ -522,7 +524,7 @@ function hasKusaAlert(nm){return !!(kusaData[nm]);}
 function hasMemoAlert(nm){return !!(memoData[nm]&&memoData[nm].length>0);}
 function hasAlert(nm){return hasKusaAlert(nm)||hasMemoAlert(nm);}
 
-function getLayerStyle(nm,feat,modeFilterMatch){
+function getLayerStyle(nm,feat,modeFilterMatch,statusFilterMatch){
   const col=fieldColor(nm);
   const isSel=multiSelected.has(nm);
   const blockCode=feat?(feat.properties.field_id||'').replace(/-.*/, ''):'';
@@ -578,6 +580,13 @@ function renderMap(){
     const cropName=(feat.properties.crop||'').trim();
     const inBlock=selBlocks.size===0||selBlocks.has(blockCode);
     const inCrop=cropMatchesFilter(cropName);
+    // 水状態フィルター判定
+    let inStatusFilter=true;
+    if(statusFilters.size>0&&(mode==='date'||mode==='status')){
+      const r=records[nm];
+      const st=r?r.status:'未記録';
+      inStatusFilter=statusFilters.has(st);
+    }
     // 水尻・暗渠フィルター判定（1回だけ計算してgetLayerStyleに渡す）
     let inModeFilter=true;
     if(mode==='mizushi'&&mizushiFilters.size>0){
@@ -592,8 +601,9 @@ function renderMap(){
     }
     // setStyleにmodeFilterMatchを渡して二重計算を防ぐ
     const hasModeFilter=(mode==='mizushi'&&mizushiFilters.size>0)||(mode==='ankyo'&&(ankyoFilters.size>0||ankyoSpecialFilter));
-    if(layer)layer.setStyle(getLayerStyle(nm,feat,hasModeFilter?inModeFilter:undefined));
-    if(inBlock&&inCrop&&inModeFilter){
+    const hasStatusFilter=statusFilters.size>0&&(mode==='date'||mode==='status');
+    if(layer)layer.setStyle(getLayerStyle(nm,feat,hasModeFilter?inModeFilter:undefined,hasStatusFilter?inStatusFilter:undefined));
+    if(inBlock&&inCrop&&inModeFilter&&inStatusFilter){
       filteredCount++;totalArea+=(parseFloat(feat.properties.area_a)||0);
       // フィルター表示中の圃場のみカウント
       if(col==='#e74c3c'&&mode==='date')a4++;
@@ -729,6 +739,9 @@ function setMode(m){
   });
   // 他モードのフィルターをクリーン（ゴースト干渉防止）
   if(m!=='date'&&m!=='status'){
+    statusFilters.clear();
+    document.querySelectorAll('[id^="sfc-"]').forEach(el=>el.classList.remove('on'));
+    const sBtn=document.getElementById('status-filter-btn');if(sBtn){sBtn.textContent='💧 水状態 ▾';sBtn.classList.remove('filtered');}
     selCrops.clear();selCropMeta.clear();
     document.querySelectorAll('[id^="cgfc-"]').forEach(el=>el.classList.remove('on'));
     const cropBtn=document.getElementById('crop-toggle-btn');if(cropBtn){cropBtn.textContent='🌾 品種 ▾';cropBtn.classList.remove('filtered');}
@@ -753,11 +766,14 @@ function setMode(m){
   const isNormal=!isMizushi&&!isAnkyo;
   const cropWrap=document.getElementById('crop-wrap');
   const alertWrap=document.getElementById('alert-wrap');
+  const statusFilterWrap=document.getElementById('status-filter-wrap');
   const mizushiWrap=document.getElementById('mizushi-filter-wrap');
   const ankyoWrap=document.getElementById('ankyo-filter-wrap');
   const ankyoSpecialWrap=document.getElementById('ankyo-special-wrap');
   if(cropWrap)cropWrap.style.display=isNormal?'':'none';
   if(alertWrap)alertWrap.style.display=isNormal?'':'none';
+  if(statusFilterWrap)statusFilterWrap.style.display=isNormal?'':'none';
+  if(isNormal)buildStatusFilterMenu();
   if(mizushiWrap)mizushiWrap.style.display=isMizushi?'':'none';
   if(ankyoWrap)ankyoWrap.style.display=isAnkyo?'':'none';
   if(ankyoSpecialWrap)ankyoSpecialWrap.style.display=isAnkyo?'':'none';
@@ -1227,6 +1243,13 @@ document.addEventListener('DOMContentLoaded',()=>{
       try{
         if(selStatus&&!bulkStatusSaved){
           await postToGAS({action:'bulk',records:targets.map(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;return{name:nm,status:newS,person:curUser,memo:'',time};})});
+          // 中干し→水尻外し連動（一括）
+          if(selStatus==='中干し'){
+            const doMizushi=confirm(targets.length+'枚を「中干し」で記録します。\nあわせて水尻を「外し済み」にしますか？');
+            if(doMizushi){
+              await postToGAS({action:'mizushi_bulk',names:targets,status:'外し済み',person:curUser,time});
+            }
+          }
           bulkStatusSaved=true;
         }
         if(bulkMemoText&&!bulkMemoSaved){
@@ -1255,9 +1278,17 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(pendingKusa)payload.kusa=pendingKusa;
     if(hasMemoToAdd)payload.memo={content:memoText};
 
+    // 中干し→水尻外し連動
+    let mizushiWithKandoshi=false;
+    if(waterNewS==='中干し'){
+      mizushiWithKandoshi=confirm('あわせて水尻を「外し済み」にしますか？');
+    }
     try{
       if(!singleSaved){
         await postToGAS(payload);
+        if(mizushiWithKandoshi){
+          await postToGAS({action:'mizushi_save',name:nm,status:'外し済み',person:curUser,time});
+        }
         singleSaved=true;
       }
       if(memoInput)memoInput.value='';
@@ -1942,5 +1973,48 @@ function toggleAnkyoSpecialFilter(){
   ankyoSpecialFilter=!ankyoSpecialFilter;
   const btn=document.getElementById('ankyo-special-btn');
   if(btn){btn.classList.toggle('filtered',ankyoSpecialFilter);btn.textContent=ankyoSpecialFilter?'🔧 特記事項あり ✓':'🔧 特記事項あり';}
+  renderMap();
+}
+
+// ============================================================
+// 水状態フィルター
+// ============================================================
+function buildStatusFilterMenu(){
+  const menu=document.getElementById('status-filter-menu');
+  if(!menu||menu.children.length>0)return; // 既に構築済みなら不要
+  menu.innerHTML='';
+  const allStatuses=['未記録',...S_OPTS.filter(s=>s!=='確認のみ')];
+  allStatuses.forEach(s=>{
+    const safeId='sfc-'+s.replace(/\s/g,'_');
+    const col=s==='未記録'?'#95a5a6':(S_COL[s]||'#95a5a6');
+    const div=document.createElement('div');div.className='fopt';
+    div.innerHTML='<div class="fchk" id="'+safeId+'"></div>'
+      +'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+col+';margin-right:4px;flex-shrink:0;"></span>'
+      +s;
+    div.addEventListener('click',()=>toggleStatusFilter(s,safeId));
+    menu.appendChild(div);
+  });
+  const reset=document.createElement('div');
+  reset.className='filter-reset';reset.textContent='✕ すべて表示にリセット';
+  reset.addEventListener('click',resetStatusFilter);
+  menu.appendChild(reset);
+}
+
+function toggleStatusFilter(status,safeId){
+  statusFilters.has(status)?statusFilters.delete(status):statusFilters.add(status);
+  const el=document.getElementById(safeId||'sfc-'+status.replace(/\s/g,'_'));
+  if(el)el.classList.toggle('on',statusFilters.has(status));
+  const btn=document.getElementById('status-filter-btn');
+  btn.classList.toggle('filtered',statusFilters.size>0);
+  btn.textContent=statusFilters.size>0?'💧 水状態（'+statusFilters.size+'）▾':'💧 水状態 ▾';
+  renderMap();
+}
+
+function resetStatusFilter(){
+  statusFilters.clear();
+  document.querySelectorAll('[id^="sfc-"]').forEach(el=>el.classList.remove('on'));
+  const btn=document.getElementById('status-filter-btn');
+  if(btn){btn.classList.remove('filtered');btn.textContent='💧 水状態 ▾';}
+  document.getElementById('status-filter-menu')?.classList.remove('open');
   renderMap();
 }

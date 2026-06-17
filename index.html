@@ -166,6 +166,10 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
     <div class="filter-reset" onclick="resetFilter('crop')">✕ すべて表示にリセット</div>
   </div>
 </div>
+<div id="status-filter-wrap" style="position:fixed;top:calc(118px + env(safe-area-inset-top, 0px));right:10px;z-index:997;display:none;">
+  <button class="filter-toggle" id="status-filter-btn" onclick="toggleDropdown('status_filter')">💧 水状態 ▾</button>
+  <div class="filter-dropdown" id="status-filter-menu"></div>
+</div>
 <div id="alert-wrap" style="position:fixed;top:158px;right:10px;z-index:996;">
   <button class="filter-toggle" id="alert-toggle-btn" onclick="toggleDropdown('alert')">🚨 アラート ▾</button>
   <div class="filter-dropdown" id="alert-menu">
