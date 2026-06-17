@@ -243,6 +243,18 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
   <div id="pl"></div>
   <div id="htimer"></div>
 
+  <!-- バッジボタン（草刈り・メモの展開トリガー） -->
+  <div id="badge-bar" style="display:flex;gap:8px;margin:8px 0 4px;">
+    <button id="kusa-badge-btn" onclick="toggleBadgeSection('kusa')"
+      style="display:flex;align-items:center;gap:4px;padding:5px 12px;border-radius:20px;border:1.5px solid #27ae60;background:#fff;color:#27ae60;font-size:12px;font-weight:700;cursor:pointer;">
+      🌿 草刈り
+    </button>
+    <button id="memo-badge-btn" onclick="toggleBadgeSection('memo')"
+      style="display:flex;align-items:center;gap:4px;padding:5px 12px;border-radius:20px;border:1.5px solid #e67e22;background:#fff;color:#e67e22;font-size:12px;font-weight:700;cursor:pointer;">
+      ⚠️ メモ
+    </button>
+  </div>
+
   <!-- 草刈りアラートセクション -->
   <div class="sub-section" id="kusa-section">
     <div class="sub-section-title">🌿 草刈りアラート</div>

@@ -954,7 +954,23 @@ function updateSaveBtnState(){
   const memoInput=document.getElementById('task-input');
   const hasMemoText=memoInput&&memoInput.value.trim().length>0;
   const hasBulkMemo=bulkMemoInputRef&&bulkMemoInputRef.value.trim().length>0;
-  btn.disabled=!(selStatus||pendingKusa||hasMemoText||hasBulkMemo);
+  const canSave=!!(selStatus||pendingKusa||hasMemoText||hasBulkMemo);
+  btn.disabled=!canSave;
+  // カメレオン化：選択した水状態に応じてボタンの色・テキストを変更
+  if(selStatus&&selStatus!=='確認のみ'&&!pendingKusa&&!hasMemoText&&!hasBulkMemo){
+    const col=S_COL[selStatus]||'#2C4A1E';
+    btn.style.background=col;
+    btn.style.borderColor=col;
+    btn.textContent='✓ '+selStatus+'を記録する';
+  }else if(selStatus==='確認のみ'){
+    btn.style.background='#95a5a6';
+    btn.style.borderColor='#95a5a6';
+    btn.textContent='✓ 確認のみ記録する';
+  }else{
+    btn.style.background='';
+    btn.style.borderColor='';
+    btn.textContent='記録する';
+  }
 }
 
 function openPanel(feat){
@@ -974,8 +990,13 @@ function openPanel(feat){
   }else{
     pl.textContent='最終確認：未記録';pl.style.cssText='background:#fff8f0;color:#e67e22;padding:7px 10px;border-radius:8px;';ht.style.display='none';
   }
-  document.getElementById('kusa-section').style.display='block';
-  document.getElementById('task-section').style.display='block';
+  document.getElementById('kusa-section').style.display='none';
+  document.getElementById('task-section').style.display='none';
+  // バッジボタンの状態をリセット
+  const kusaBadge=document.getElementById('kusa-badge-btn');
+  const memoBadge=document.getElementById('memo-badge-btn');
+  if(kusaBadge)kusaBadge.classList.remove('active');
+  if(memoBadge)memoBadge.classList.remove('active');
   document.getElementById('bulk-extra').innerHTML='';
   updateKusaUI(p.name.trim());
   updateMemoUI(p.name.trim());
@@ -2050,4 +2071,25 @@ function showToast(msg){
   clearTimeout(toast._timer);
   setTimeout(()=>{toast.style.opacity='1';},10);
   toast._timer=setTimeout(()=>{toast.style.opacity='0';},3000);
+}
+
+// ============================================================
+// バッジボタン：草刈り・メモセクションの展開/折りたたみ
+// ============================================================
+function toggleBadgeSection(type){
+  const sectionId=type==='kusa'?'kusa-section':'task-section';
+  const btnId=type==='kusa'?'kusa-badge-btn':'memo-badge-btn';
+  const section=document.getElementById(sectionId);
+  const btn=document.getElementById(btnId);
+  if(!section||!btn)return;
+  const isOpen=section.style.display!=='none';
+  section.style.display=isOpen?'none':'block';
+  btn.classList.toggle('active',!isOpen);
+  if(!isOpen){
+    btn.style.background=type==='kusa'?'#27ae60':'#e67e22';
+    btn.style.color='#fff';
+  }else{
+    btn.style.background='#fff';
+    btn.style.color=type==='kusa'?'#27ae60':'#e67e22';
+  }
 }
