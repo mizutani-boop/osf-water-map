@@ -1122,6 +1122,11 @@ async function loadRecords(){
   }
   renderMap();
   document.getElementById('last-update').textContent=new Date().toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'})+'更新';
+  // 水状態フィルターメニューを再構築（S_OPTSが更新された可能性があるため）
+  buildStatusFilterMenu();
+  // 初回のみフィルターラップを表示
+  const sfw=document.getElementById('status-filter-wrap');
+  if(sfw&&(mode==='date'||mode==='status'))sfw.style.display='';
 }
 function changeUser(){const n=prompt('担当者名を入力してください',curUser);if(n!==null){curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n||'未設定';}}
 
