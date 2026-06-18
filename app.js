@@ -151,9 +151,8 @@ function buildLayers(){
 
     // マーカー生成（初期は map に addTo しない＝浮かせた状態）
     try{
-      const bounds=L.geoJSON(feat).getBounds();
-      if(bounds.isValid()){
-        const center=bounds.getCenter();
+      const center=getPolygonCentroid(feat);
+      if(center){
         const mk=L.marker(center,{
           icon:L.divIcon({className:'',html:'',iconSize:[44,22],iconAnchor:[22,11]}),
           interactive:false
@@ -177,6 +176,22 @@ function buildLayers(){
   });
 }
 
+// ============================================================
+// ポリゴン重心を頂点平均で計算（getBounds().getCenter()より正確）
+// ============================================================
+function getPolygonCentroid(feat){
+  try{
+    const geom=feat.geometry;
+    let coords;
+    if(geom.type==='Polygon')coords=geom.coordinates[0];
+    else if(geom.type==='MultiPolygon')coords=geom.coordinates[0][0];
+    else return null;
+    const n=coords.length-1; // 閉じたポリゴンは最後の点＝最初の点なので除外
+    let lng=0,lat=0;
+    for(let i=0;i<n;i++){lng+=coords[i][0];lat+=coords[i][1];}
+    return L.latLng(lat/n,lng/n);
+  }catch(e){return null;}
+}
 function initFilters(){
   // ブロックフィルター（件数バッジ付き）
   const blockCodes=[...new Set(GJ.features.map(f=>(f.properties.field_id||'').replace(/-.*/, '')).filter(c=>c&&BM[c]))].sort();
@@ -2296,7 +2311,7 @@ function toggleBadgeSection(type){
 function focusOnFeature(feat){
   if(!map||!feat)return;
   try{
-    const center=L.geoJSON(feat).getBounds().getCenter();
+    const center=getPolygonCentroid(feat)||L.geoJSON(feat).getBounds().getCenter();
     const pt=map.project(center,map.getZoom());
     pt.y+=120; // パネルの上・ヘッダーの下のゴールデンゾーンへ
     const newCenter=map.unproject(pt,map.getZoom());
