@@ -177,37 +177,13 @@ function buildLayers(){
 }
 
 // ============================================================
-// ポリゴン重心を面積計算（Shoelace formula）で正確に求める
+// ポリゴン中心（バウンディングボックス中心）
 // ============================================================
 function getPolygonCentroid(feat){
   try{
-    const geom=feat.geometry;
-    let coords;
-    if(geom.type==='Polygon')coords=geom.coordinates[0];
-    else if(geom.type==='MultiPolygon')coords=geom.coordinates[0][0];
-    else return null;
-
-    const n=coords.length-1; // 閉じたポリゴンは最後の点＝最初の点なので除外
-    let signedArea=0,cx=0,cy=0;
-
-    for(let i=0;i<n;i++){
-      const x0=coords[i][0],y0=coords[i][1];
-      const x1=coords[i+1][0],y1=coords[i+1][1];
-      const a=x0*y1-x1*y0;
-      signedArea+=a;
-      cx+=(x0+x1)*a;
-      cy+=(y0+y1)*a;
-    }
-
-    signedArea*=0.5;
-    if(signedArea===0)return L.geoJSON(feat).getBounds().getCenter(); // 面積0のエラーデータ対策
-
-    cx=cx/(6*signedArea);
-    cy=cy/(6*signedArea);
-    return L.latLng(cy,cx);
-  }catch(e){
-    return null;
-  }
+    const bounds=L.geoJSON(feat).getBounds();
+    return bounds.isValid()?bounds.getCenter():null;
+  }catch(e){return null;}
 }
 function initFilters(){
   // ブロックフィルター（件数バッジ付き）
