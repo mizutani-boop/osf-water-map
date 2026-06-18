@@ -326,8 +326,8 @@ function toggleFieldSelect(nm){
   const feat=fieldFeatureMap.get(nm);
   const layer=layers[nm];
   if(layer)layer.setStyle(getLayerStyle(nm,feat));
+  if(layer&&multiSelected.has(nm))layer.bringToFront();
   if(document.getElementById('panel').classList.contains('open')&&selField===null){
-    document.getElementById('pt').textContent=cnt+'枚の一括記録';
     const tgts=[...multiSelected];
     document.getElementById('pm').textContent=tgts.slice(0,3).join('、')+(tgts.length>3?' 他'+(tgts.length-3)+'枚':'');
     updateConfirmOnlyBtn();
@@ -575,8 +575,8 @@ function getLayerStyle(nm,feat,modeFilterMatch,statusFilterMatch){
   }
   if(isSel||isCurrent)opacity=0.9;
   let color='#fff',weight=0.8;
-  if(isSel){color='#f39c12';weight=3;}
-  else if(isCurrent){color='#f39c12';weight=4;}
+  if(isSel){color='#fff';weight=4;}
+  else if(isCurrent){color='#fff';weight=4;}
   else if((mode==='mizushi'||mode==='ankyo')&&modeFilterMatch===true){color='#2C4A1E';weight=2;}
   else if((mode==='date'||mode==='status')&&statusFilterMatch===true){color='#2C4A1E';weight=2;}
   else if(statusFilters.size>0&&statusFilterMatch===false){color='#fff';weight=0.8;}
@@ -1076,6 +1076,7 @@ function openPanel(feat){
   // 選択圃場を即時ハイライト
   const selNm=feat.properties.name.trim();
   if(layers[selNm])layers[selNm].setStyle(getLayerStyle(selNm,feat));
+  if(layers[selNm])layers[selNm].bringToFront();
   updateSaveBtnState();
 }
 

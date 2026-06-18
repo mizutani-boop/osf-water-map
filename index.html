@@ -127,6 +127,8 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 .hrow-del{font-size:11px;color:#e74c3c;background:none;border:1px solid #e74c3c;border-radius:5px;padding:2px 6px;cursor:pointer;flex-shrink:0;}
 #overlay{position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:1000;display:none;}
 #overlay.on{display:block;}
+/* iOS Safari強制ズーム防止（16px未満のinput/selectでタップ時にズームが発動する） */
+#search-input,.sub-input,.tsel{font-size:16px;}
 </style>
 </head>
 <body>
