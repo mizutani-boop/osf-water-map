@@ -177,7 +177,7 @@ function buildLayers(){
 }
 
 // ============================================================
-// ポリゴン重心を頂点平均で計算（getBounds().getCenter()より正確）
+// ポリゴン重心を面積計算（Shoelace formula）で正確に求める
 // ============================================================
 function getPolygonCentroid(feat){
   try{
@@ -186,11 +186,28 @@ function getPolygonCentroid(feat){
     if(geom.type==='Polygon')coords=geom.coordinates[0];
     else if(geom.type==='MultiPolygon')coords=geom.coordinates[0][0];
     else return null;
+
     const n=coords.length-1; // 閉じたポリゴンは最後の点＝最初の点なので除外
-    let lng=0,lat=0;
-    for(let i=0;i<n;i++){lng+=coords[i][0];lat+=coords[i][1];}
-    return L.latLng(lat/n,lng/n);
-  }catch(e){return null;}
+    let signedArea=0,cx=0,cy=0;
+
+    for(let i=0;i<n;i++){
+      const x0=coords[i][0],y0=coords[i][1];
+      const x1=coords[i+1][0],y1=coords[i+1][1];
+      const a=x0*y1-x1*y0;
+      signedArea+=a;
+      cx+=(x0+x1)*a;
+      cy+=(y0+y1)*a;
+    }
+
+    signedArea*=0.5;
+    if(signedArea===0)return L.geoJSON(feat).getBounds().getCenter(); // 面積0のエラーデータ対策
+
+    cx=cx/(6*signedArea);
+    cy=cy/(6*signedArea);
+    return L.latLng(cy,cx);
+  }catch(e){
+    return null;
+  }
 }
 function initFilters(){
   // ブロックフィルター（件数バッジ付き）
