@@ -1179,6 +1179,8 @@ async function loadRecords(){
   // フィルターメニューを再構築（S_OPTSの更新・件数変化に対応）
   buildStatusFilterMenu();
   buildAlertFilterMenu();
+  buildMizushiFilterMenu();
+  buildAnkyoFilterMenu();
   // 初回のみフィルターラップを表示
   const sfw=document.getElementById('status-filter-wrap');
   if(sfw&&(mode==='date'||mode==='status'))sfw.style.display='';
@@ -2138,7 +2140,97 @@ function buildAlertFilterMenu(){
   });
 }
 
-function toggleStatusFilter(status,safeId){
+// ============================================================
+// 水尻フィルターメニューの構築（件数表示付き・動的生成）
+// ============================================================
+function buildMizushiFilterMenu(){
+  const menu=document.getElementById('mizushi-status-menu');
+  if(!menu||!GJ)return;
+  menu.innerHTML='';
+
+  // 件数を集計
+  const counts={設置済み:0,外し済み:0,未記録:0};
+  GJ.features.forEach(f=>{
+    const nm=f.properties.name.trim();
+    const m=mizushiData[nm];
+    if(!m)counts['未記録']++;
+    else if(m.status==='設置済み')counts['設置済み']++;
+    else if(m.status==='外し済み')counts['外し済み']++;
+    else counts['未記録']++;
+  });
+
+  const items=[
+    {key:'設置済み',col:'#8e44ad'},
+    {key:'外し済み',col:'#e67e22'},
+    {key:'未記録',  col:'#95a5a6'},
+  ];
+  items.forEach(item=>{
+    const div=document.createElement('div');div.className='fopt';
+    div.style.cssText='display:flex;align-items:center;';
+    div.innerHTML='<div class="fchk" id="mfc-'+item.key+'"></div>'
+      +'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+item.col+';margin-right:4px;flex-shrink:0;"></span>'
+      +'<span style="flex-grow:1;">'+item.key+'</span>'
+      +'<span style="font-size:12px;color:#666;background:#f0f0f0;padding:2px 8px;border-radius:10px;font-weight:bold;margin-left:auto;">'+counts[item.key]+'</span>';
+    div.addEventListener('click',()=>toggleMizushiFilter(item.key));
+    menu.appendChild(div);
+  });
+  const reset=document.createElement('div');
+  reset.className='filter-reset';reset.textContent='✕ すべて表示にリセット';
+  reset.addEventListener('click',resetMizushiFilter);
+  menu.appendChild(reset);
+
+  mizushiFilters.forEach(s=>{
+    const el=document.getElementById('mfc-'+s);
+    if(el)el.classList.add('on');
+  });
+}
+
+// ============================================================
+// 暗渠フィルターメニューの構築（件数表示付き・動的生成）
+// ============================================================
+function buildAnkyoFilterMenu(){
+  const menu=document.getElementById('ankyo-status-menu');
+  if(!menu||!GJ)return;
+  menu.innerHTML='';
+
+  // 件数を集計（updateSummaryの暗渠ロジックと同じ）
+  const counts={はめ済み:0,外し済み:0,なし:0,未登録:0};
+  GJ.features.forEach(f=>{
+    const nm=f.properties.name.trim();
+    const master=ankyoMaster[nm];
+    if(!master){counts['未登録']++;return;}
+    if(master.hasAnkyo==='なし'){counts['なし']++;return;}
+    const op=ankyoOpData[nm];
+    if(!op||op.status==='はめた')counts['はめ済み']++;
+    else counts['外し済み']++;
+  });
+
+  const items=[
+    {key:'はめ済み',col:'#2980b9'},
+    {key:'外し済み',col:'#e67e22'},
+    {key:'なし',    col:'#27ae60'},
+    {key:'未登録',  col:'#95a5a6'},
+  ];
+  items.forEach(item=>{
+    const div=document.createElement('div');div.className='fopt';
+    div.style.cssText='display:flex;align-items:center;';
+    div.innerHTML='<div class="fchk" id="akyfc-'+item.key+'"></div>'
+      +'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+item.col+';margin-right:4px;flex-shrink:0;"></span>'
+      +'<span style="flex-grow:1;">'+item.key+'</span>'
+      +'<span style="font-size:12px;color:#666;background:#f0f0f0;padding:2px 8px;border-radius:10px;font-weight:bold;margin-left:auto;">'+counts[item.key]+'</span>';
+    div.addEventListener('click',()=>toggleAnkyoFilter(item.key));
+    menu.appendChild(div);
+  });
+  const reset=document.createElement('div');
+  reset.className='filter-reset';reset.textContent='✕ すべて表示にリセット';
+  reset.addEventListener('click',resetAnkyoFilter);
+  menu.appendChild(reset);
+
+  ankyoFilters.forEach(s=>{
+    const el=document.getElementById('akyfc-'+s);
+    if(el)el.classList.add('on');
+  });
+}
   statusFilters.has(status)?statusFilters.delete(status):statusFilters.add(status);
   const el=document.getElementById(safeId||'sfc-'+status.replace(/\s/g,'_'));
   if(el)el.classList.toggle('on',statusFilters.has(status));

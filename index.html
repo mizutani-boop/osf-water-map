@@ -179,22 +179,11 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 </div>
 <div id="mizushi-filter-wrap" style="position:fixed;top:calc(118px + env(safe-area-inset-top, 0px));right:10px;z-index:997;display:none;">
   <button class="filter-toggle" id="mizushi-filter-btn" onclick="toggleDropdown('mizushi_status')">💧 水尻状態 ▾</button>
-  <div class="filter-dropdown" id="mizushi-status-menu">
-    <div class="fopt" onclick="toggleMizushiFilter('設置済み')"><div class="fchk" id="mfc-設置済み"></div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#8e44ad;margin-right:4px;vertical-align:middle;"></span>設置済み</div>
-    <div class="fopt" onclick="toggleMizushiFilter('外し済み')"><div class="fchk" id="mfc-外し済み"></div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e67e22;margin-right:4px;vertical-align:middle;"></span>外し済み</div>
-    <div class="fopt" onclick="toggleMizushiFilter('未記録')"><div class="fchk" id="mfc-未記録"></div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#95a5a6;margin-right:4px;vertical-align:middle;"></span>未記録</div>
-    <div class="filter-reset" onclick="resetMizushiFilter()">✕ すべて表示にリセット</div>
-  </div>
+  <div class="filter-dropdown" id="mizushi-status-menu"></div>
 </div>
 <div id="ankyo-filter-wrap" style="position:fixed;top:calc(118px + env(safe-area-inset-top, 0px));right:10px;z-index:997;display:none;">
   <button class="filter-toggle" id="ankyo-status-btn" onclick="toggleDropdown('ankyo_status')">🕳 暗渠状態 ▾</button>
-  <div class="filter-dropdown" id="ankyo-status-menu">
-    <div class="fopt" onclick="toggleAnkyoFilter('はめ済み')"><div class="fchk" id="akyfc-はめ済み"></div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#2980b9;margin-right:4px;vertical-align:middle;"></span>はめ済み</div>
-    <div class="fopt" onclick="toggleAnkyoFilter('外し済み')"><div class="fchk" id="akyfc-外し済み"></div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e67e22;margin-right:4px;vertical-align:middle;"></span>外し済み</div>
-    <div class="fopt" onclick="toggleAnkyoFilter('なし')"><div class="fchk" id="akyfc-なし"></div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#27ae60;margin-right:4px;vertical-align:middle;"></span>なし</div>
-    <div class="fopt" onclick="toggleAnkyoFilter('未登録')"><div class="fchk" id="akyfc-未登録"></div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#95a5a6;margin-right:4px;vertical-align:middle;"></span>未登録</div>
-    <div class="filter-reset" onclick="resetAnkyoFilter()">✕ すべて表示にリセット</div>
-  </div>
+  <div class="filter-dropdown" id="ankyo-status-menu"></div>
 </div>
 <div id="ankyo-special-wrap" style="position:fixed;top:calc(198px + env(safe-area-inset-top, 0px));right:10px;z-index:996;display:none;">
   <button class="filter-toggle" id="ankyo-special-btn" onclick="toggleAnkyoSpecialFilter()">🔧 特記事項あり</button>
