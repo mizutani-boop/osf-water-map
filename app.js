@@ -109,9 +109,6 @@ async function init(){
   // [NEW] 初回1回だけレイヤー・マーカーを生成
   buildLayers();
 
-  // 起動直後から0件の状態でフィルターメニューを構築（パカパカ防止）
-  buildStatusFilterMenu();
-
   loadRecords();
   setInterval(loadRecords,60000);
 }
@@ -177,31 +174,42 @@ function buildLayers(){
 }
 
 function initFilters(){
+  // ブロックフィルター（件数バッジ付き）
   const blockCodes=[...new Set(GJ.features.map(f=>(f.properties.field_id||'').replace(/-.*/, '')).filter(c=>c&&BM[c]))].sort();
   blockCodes.forEach(c=>{
+    const cnt=GJ.features.filter(f=>(f.properties.field_id||'').replace(/-.*/, '')===c).length;
     const d=document.createElement('div');d.className='fopt';
-    d.innerHTML='<div class="fchk" id="bfc-'+c+'"></div>'+BM[c]+'('+c+')';
+    d.style.cssText='display:flex;align-items:center;';
+    d.innerHTML='<div class="fchk" id="bfc-'+c+'"></div>'
+      +'<span style="flex-grow:1;">'+BM[c]+'('+c+')</span>'
+      +'<span style="font-size:12px;color:#666;background:#f0f0f0;padding:2px 8px;border-radius:10px;font-weight:bold;margin-left:auto;">'+cnt+'</span>';
     d.addEventListener('click',()=>toggleBlock(c));
     document.getElementById('block-options').appendChild(d);
   });
+  // 品種フィルター（件数バッジ付き・グループ単位）
   CROP_GROUPS.slice(0,6).forEach(g=>{
     const cnt=GJ.features.filter(f=>getCropGroup(normalizeCropName((f.properties.crop||'').trim())).key===g.key).length;
     if(cnt===0)return;
     const d=document.createElement('div');d.className='fopt';
+    d.style.cssText='display:flex;align-items:center;';
     d.innerHTML='<div class="fchk" id="cgfc-'+g.key+'"></div>'
-      +'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+g.color+';margin-right:4px;vertical-align:middle;"></span>'
-      +g.label+' <span style="color:#aaa">('+cnt+'枚)</span>';
+      +'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+g.color+';margin-right:4px;flex-shrink:0;"></span>'
+      +'<span style="flex-grow:1;">'+g.label+'</span>'
+      +'<span style="font-size:12px;color:#666;background:#f0f0f0;padding:2px 8px;border-radius:10px;font-weight:bold;margin-left:auto;">'+cnt+'</span>';
     d.addEventListener('click',()=>toggleCrop(g.key,'cgfc-'+g.key,false));
     document.getElementById('crop-options').appendChild(d);
   });
+  // 「その他」個別品種（件数バッジ付き）
   const otherCrops=[...new Set(GJ.features.map(f=>normalizeCropName((f.properties.crop||'').trim())).filter(c=>c&&getCropGroup(c).key==='その他'))].sort();
   otherCrops.forEach(cropName=>{
     const cnt=GJ.features.filter(f=>normalizeCropName((f.properties.crop||'').trim())===cropName).length;
     const safeId='cgfc-other-'+cropName.replace(/\s+/g,'_').replace(/[^\w\u3040-\u9fff]/g,'X');
     const d=document.createElement('div');d.className='fopt';
+    d.style.cssText='display:flex;align-items:center;';
     d.innerHTML='<div class="fchk" id="'+safeId+'"></div>'
-      +'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#95a5a6;margin-right:4px;vertical-align:middle;"></span>'
-      +cleanCropName(cropName)+' <span style="color:#aaa">('+cnt+'枚)</span>';
+      +'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#95a5a6;margin-right:4px;flex-shrink:0;"></span>'
+      +'<span style="flex-grow:1;">'+cleanCropName(cropName)+'</span>'
+      +'<span style="font-size:12px;color:#666;background:#f0f0f0;padding:2px 8px;border-radius:10px;font-weight:bold;margin-left:auto;">'+cnt+'</span>';
     d.addEventListener('click',()=>toggleCrop(cropName,safeId,true));
     document.getElementById('crop-options').appendChild(d);
   });
@@ -2039,30 +2047,15 @@ function buildStatusFilterMenu(){
   const menu=document.getElementById('status-filter-menu');
   if(!menu)return;
   menu.innerHTML=''; // 毎回再構築（S_OPTSが変わっても追従）
-
-  // 件数を集計（GJ未ロード時は0件で表示）
-  const counts={'未記録':0};
-  S_OPTS.forEach(s=>counts[s]=0);
-  if(GJ){
-    GJ.features.forEach(feat=>{
-      const nm=feat.properties.name.trim();
-      const rec=records[nm];
-      const st=rec?rec.status:'未記録';
-      if(counts[st]!==undefined)counts[st]++;
-      else counts['未記録']++;
-    });
-  }
-
+  menu.innerHTML='';
   const allStatuses=['未記録',...S_OPTS.filter(s=>s!=='確認のみ')];
   allStatuses.forEach(s=>{
     const safeId='sfc-'+s.replace(/\s/g,'_');
     const col=s==='未記録'?'#95a5a6':(S_COL[s]||'#95a5a6');
     const div=document.createElement('div');div.className='fopt';
-    div.style.cssText='display:flex;align-items:center;';
     div.innerHTML='<div class="fchk" id="'+safeId+'"></div>'
       +'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+col+';margin-right:4px;flex-shrink:0;"></span>'
-      +'<span style="flex-grow:1;">'+s+'</span>'
-      +'<span style="font-size:12px;color:#666;background:#f0f0f0;padding:2px 8px;border-radius:10px;font-weight:bold;margin-left:auto;">'+(counts[s]||0)+'</span>';
+      +s;
     div.addEventListener('click',()=>toggleStatusFilter(s,safeId));
     menu.appendChild(div);
   });
@@ -2070,12 +2063,6 @@ function buildStatusFilterMenu(){
   reset.className='filter-reset';reset.textContent='✕ すべて表示にリセット';
   reset.addEventListener('click',resetStatusFilter);
   menu.appendChild(reset);
-
-  // フィルター選択状態を復元
-  statusFilters.forEach(s=>{
-    const el=document.getElementById('sfc-'+s.replace(/\s/g,'_'));
-    if(el)el.classList.add('on');
-  });
 }
 
 function toggleStatusFilter(status,safeId){
