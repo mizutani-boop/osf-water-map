@@ -575,8 +575,8 @@ function getLayerStyle(nm,feat,modeFilterMatch,statusFilterMatch){
   }
   if(isSel||isCurrent)opacity=0.9;
   let color='#fff',weight=0.8;
-  if(isSel){color='#fff';weight=4;}
-  else if(isCurrent){color='#fff';weight=4;}
+  if(isSel){color='#000';weight=3.5;}
+  else if(isCurrent){color='#000';weight=3.5;}
   else if((mode==='mizushi'||mode==='ankyo')&&modeFilterMatch===true){color='#2C4A1E';weight=2;}
   else if((mode==='date'||mode==='status')&&statusFilterMatch===true){color='#2C4A1E';weight=2;}
   else if(statusFilters.size>0&&statusFilterMatch===false){color='#fff';weight=0.8;}
