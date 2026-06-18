@@ -2231,6 +2231,8 @@ function buildAnkyoFilterMenu(){
     if(el)el.classList.add('on');
   });
 }
+
+function toggleStatusFilter(status,safeId){
   statusFilters.has(status)?statusFilters.delete(status):statusFilters.add(status);
   const el=document.getElementById(safeId||'sfc-'+status.replace(/\s/g,'_'));
   if(el)el.classList.toggle('on',statusFilters.has(status));
