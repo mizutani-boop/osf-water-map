@@ -175,28 +175,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 
 <div id="alert-wrap" style="position:fixed;top:calc(198px + env(safe-area-inset-top, 0px));right:10px;z-index:996;">
   <button class="filter-toggle" id="alert-toggle-btn" onclick="toggleDropdown('alert')">🚨 アラート ▾</button>
-  <div class="filter-dropdown" id="alert-menu">
-    <div class="fopt" onclick="toggleAlertFilter('kusa_new')">
-      <div class="fchk" id="afc-kusa_new"></div>
-      <span style="background:#27ae60;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;margin-right:4px;flex-shrink:0">🌿</span>
-      草刈り（3日未満）
-    </div>
-    <div class="fopt" onclick="toggleAlertFilter('kusa_mid')">
-      <div class="fchk" id="afc-kusa_mid"></div>
-      <span style="background:#e67e22;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;margin-right:4px;flex-shrink:0">🌿</span>
-      草刈り（3〜7日）
-    </div>
-    <div class="fopt" onclick="toggleAlertFilter('kusa_old')">
-      <div class="fchk" id="afc-kusa_old"></div>
-      <span style="background:#e74c3c;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;margin-right:4px;flex-shrink:0">🌿</span>
-      草刈り（7日以上）
-    </div>
-    <div class="fopt" onclick="toggleAlertFilter('memo')">
-      <div class="fchk" id="afc-memo"></div>
-      <span style="margin-right:4px">⚠️</span>メモあり
-    </div>
-    <div class="filter-reset" onclick="resetAlertFilter()">✕ すべて表示にリセット</div>
-  </div>
+  <div class="filter-dropdown" id="alert-menu"></div>
 </div>
 <div id="mizushi-filter-wrap" style="position:fixed;top:calc(118px + env(safe-area-inset-top, 0px));right:10px;z-index:997;display:none;">
   <button class="filter-toggle" id="mizushi-filter-btn" onclick="toggleDropdown('mizushi_status')">💧 水尻状態 ▾</button>

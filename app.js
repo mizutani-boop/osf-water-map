@@ -109,6 +109,10 @@ async function init(){
   // [NEW] 初回1回だけレイヤー・マーカーを生成
   buildLayers();
 
+  // 起動直後から0件の状態でフィルターメニューを構築（パカパカ防止）
+  buildStatusFilterMenu();
+  buildAlertFilterMenu();
+
   loadRecords();
   setInterval(loadRecords,60000);
 }
@@ -1172,8 +1176,9 @@ async function loadRecords(){
   }
   renderMap();
   document.getElementById('last-update').textContent=new Date().toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'})+'更新';
-  // 水状態フィルターメニューを再構築（S_OPTSが更新された可能性があるため）
+  // フィルターメニューを再構築（S_OPTSの更新・件数変化に対応）
   buildStatusFilterMenu();
+  buildAlertFilterMenu();
   // 初回のみフィルターラップを表示
   const sfw=document.getElementById('status-filter-wrap');
   if(sfw&&(mode==='date'||mode==='status'))sfw.style.display='';
@@ -2047,15 +2052,30 @@ function buildStatusFilterMenu(){
   const menu=document.getElementById('status-filter-menu');
   if(!menu)return;
   menu.innerHTML=''; // 毎回再構築（S_OPTSが変わっても追従）
-  menu.innerHTML='';
+
+  // 件数を集計（GJ未ロード時は0件で表示）
+  const counts={'未記録':0};
+  S_OPTS.forEach(s=>counts[s]=0);
+  if(GJ){
+    GJ.features.forEach(feat=>{
+      const nm=feat.properties.name.trim();
+      const rec=records[nm];
+      const st=rec?rec.status:'未記録';
+      if(counts[st]!==undefined)counts[st]++;
+      else counts['未記録']++;
+    });
+  }
+
   const allStatuses=['未記録',...S_OPTS.filter(s=>s!=='確認のみ')];
   allStatuses.forEach(s=>{
     const safeId='sfc-'+s.replace(/\s/g,'_');
     const col=s==='未記録'?'#95a5a6':(S_COL[s]||'#95a5a6');
     const div=document.createElement('div');div.className='fopt';
+    div.style.cssText='display:flex;align-items:center;';
     div.innerHTML='<div class="fchk" id="'+safeId+'"></div>'
       +'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+col+';margin-right:4px;flex-shrink:0;"></span>'
-      +s;
+      +'<span style="flex-grow:1;">'+s+'</span>'
+      +'<span style="font-size:12px;color:#666;background:#f0f0f0;padding:2px 8px;border-radius:10px;font-weight:bold;margin-left:auto;">'+(counts[s]||0)+'</span>';
     div.addEventListener('click',()=>toggleStatusFilter(s,safeId));
     menu.appendChild(div);
   });
@@ -2063,6 +2083,59 @@ function buildStatusFilterMenu(){
   reset.className='filter-reset';reset.textContent='✕ すべて表示にリセット';
   reset.addEventListener('click',resetStatusFilter);
   menu.appendChild(reset);
+
+  // フィルター選択状態を復元
+  statusFilters.forEach(s=>{
+    const el=document.getElementById('sfc-'+s.replace(/\s/g,'_'));
+    if(el)el.classList.add('on');
+  });
+}
+
+// ============================================================
+// アラートフィルターメニューの構築（件数表示付き・動的生成）
+// ============================================================
+function buildAlertFilterMenu(){
+  const menu=document.getElementById('alert-menu');
+  if(!menu)return;
+  menu.innerHTML='';
+
+  // 件数を集計
+  const cntNew=Object.keys(kusaData).filter(nm=>{const d=getKusaDays(nm);return d>0&&d<3;}).length;
+  const cntMid=Object.keys(kusaData).filter(nm=>{const d=getKusaDays(nm);return d>=3&&d<7;}).length;
+  const cntOld=Object.keys(kusaData).filter(nm=>getKusaDays(nm)>=7).length;
+  const cntMemo=Object.keys(memoData).filter(nm=>memoData[nm]&&memoData[nm].length>0).length;
+
+  const items=[
+    {key:'kusa_new',label:'草刈り（3日未満）',bg:'#27ae60',icon:'🌿',cnt:cntNew},
+    {key:'kusa_mid',label:'草刈り（3〜7日）', bg:'#e67e22',icon:'🌿',cnt:cntMid},
+    {key:'kusa_old',label:'草刈り（7日以上）',bg:'#e74c3c',icon:'🌿',cnt:cntOld},
+    {key:'memo',    label:'メモあり',          bg:null,   icon:'⚠️',cnt:cntMemo},
+  ];
+
+  items.forEach(item=>{
+    const div=document.createElement('div');div.className='fopt';
+    div.style.cssText='display:flex;align-items:center;';
+    const iconHtml=item.bg
+      ?'<span style="background:'+item.bg+';border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;margin-right:4px;flex-shrink:0;">'+item.icon+'</span>'
+      :'<span style="margin-right:4px;flex-shrink:0;">'+item.icon+'</span>';
+    div.innerHTML='<div class="fchk" id="afc-'+item.key+'"></div>'
+      +iconHtml
+      +'<span style="flex-grow:1;">'+item.label+'</span>'
+      +'<span style="font-size:12px;color:#666;background:#f0f0f0;padding:2px 8px;border-radius:10px;font-weight:bold;margin-left:auto;">'+item.cnt+'</span>';
+    div.addEventListener('click',()=>toggleAlertFilter(item.key));
+    menu.appendChild(div);
+  });
+
+  const reset=document.createElement('div');
+  reset.className='filter-reset';reset.textContent='✕ すべて表示にリセット';
+  reset.addEventListener('click',resetAlertFilter);
+  menu.appendChild(reset);
+
+  // フィルター選択状態を復元
+  alertFilters.forEach(t=>{
+    const el=document.getElementById('afc-'+t);
+    if(el)el.classList.add('on');
+  });
 }
 
 function toggleStatusFilter(status,safeId){
