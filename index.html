@@ -166,10 +166,13 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
     <div class="filter-reset" onclick="resetFilter('crop')">✕ すべて表示にリセット</div>
   </div>
 </div>
-<div id="status-filter-wrap" style="position:fixed;top:calc(158px + env(safe-area-inset-top, 0px));right:10px;z-index:997;display:none;">
+
+<!-- ★修正箇所: display:none を削除 → setMode()で表示制御 -->
+<div id="status-filter-wrap" style="position:fixed;top:calc(158px + env(safe-area-inset-top, 0px));right:10px;z-index:997;">
   <button class="filter-toggle" id="status-filter-btn" onclick="toggleDropdown('status_filter')">💧 水状態 ▾</button>
   <div class="filter-dropdown" id="status-filter-menu"></div>
 </div>
+
 <div id="alert-wrap" style="position:fixed;top:calc(198px + env(safe-area-inset-top, 0px));right:10px;z-index:996;">
   <button class="filter-toggle" id="alert-toggle-btn" onclick="toggleDropdown('alert')">🚨 アラート ▾</button>
   <div class="filter-dropdown" id="alert-menu">

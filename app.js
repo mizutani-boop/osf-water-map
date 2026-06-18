@@ -109,6 +109,9 @@ async function init(){
   // [NEW] 初回1回だけレイヤー・マーカーを生成
   buildLayers();
 
+  // 起動直後から0件の状態でフィルターメニューを構築（パカパカ防止）
+  buildStatusFilterMenu();
+
   loadRecords();
   setInterval(loadRecords,60000);
 }
@@ -2036,15 +2039,30 @@ function buildStatusFilterMenu(){
   const menu=document.getElementById('status-filter-menu');
   if(!menu)return;
   menu.innerHTML=''; // 毎回再構築（S_OPTSが変わっても追従）
-  menu.innerHTML='';
+
+  // 件数を集計（GJ未ロード時は0件で表示）
+  const counts={'未記録':0};
+  S_OPTS.forEach(s=>counts[s]=0);
+  if(GJ){
+    GJ.features.forEach(feat=>{
+      const nm=feat.properties.name.trim();
+      const rec=records[nm];
+      const st=rec?rec.status:'未記録';
+      if(counts[st]!==undefined)counts[st]++;
+      else counts['未記録']++;
+    });
+  }
+
   const allStatuses=['未記録',...S_OPTS.filter(s=>s!=='確認のみ')];
   allStatuses.forEach(s=>{
     const safeId='sfc-'+s.replace(/\s/g,'_');
     const col=s==='未記録'?'#95a5a6':(S_COL[s]||'#95a5a6');
     const div=document.createElement('div');div.className='fopt';
+    div.style.cssText='display:flex;align-items:center;';
     div.innerHTML='<div class="fchk" id="'+safeId+'"></div>'
       +'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+col+';margin-right:4px;flex-shrink:0;"></span>'
-      +s;
+      +'<span style="flex-grow:1;">'+s+'</span>'
+      +'<span style="font-size:12px;color:#666;background:#f0f0f0;padding:2px 8px;border-radius:10px;font-weight:bold;margin-left:auto;">'+(counts[s]||0)+'</span>';
     div.addEventListener('click',()=>toggleStatusFilter(s,safeId));
     menu.appendChild(div);
   });
@@ -2052,6 +2070,12 @@ function buildStatusFilterMenu(){
   reset.className='filter-reset';reset.textContent='✕ すべて表示にリセット';
   reset.addEventListener('click',resetStatusFilter);
   menu.appendChild(reset);
+
+  // フィルター選択状態を復元
+  statusFilters.forEach(s=>{
+    const el=document.getElementById('sfc-'+s.replace(/\s/g,'_'));
+    if(el)el.classList.add('on');
+  });
 }
 
 function toggleStatusFilter(status,safeId){
