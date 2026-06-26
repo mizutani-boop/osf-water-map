@@ -240,6 +240,12 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
     <div class="sub-section-title">⚠️ チームへの連絡・不具合報告<span style="font-size:10px;font-weight:400;color:#aaa;margin-left:6px;">（地図にアイコンが残ります）</span></div>
     <div class="sub-row" id="task-input-row">
       <input class="sub-input" id="task-input" type="text" placeholder="例：漏水あり、イノシシの跡あり、水口が詰まっている等">
+      <button id="photo-btn" class="sub-btn" style="flex-shrink:0;padding:5px 10px;font-size:16px;border-color:#ddd;color:#888;" title="写真を添付">📷</button>
+      <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none;">
+    </div>
+    <div id="photo-preview-wrap" style="display:none;margin-top:6px;position:relative;display:none;">
+      <img id="photo-preview" style="max-width:100%;border-radius:8px;border:1.5px solid #e0e0e0;display:block;">
+      <button id="photo-remove-btn" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:26px;height:26px;font-size:15px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;">✕</button>
     </div>
     <div id="task-list" style="margin-top:6px;"></div>
   </div>

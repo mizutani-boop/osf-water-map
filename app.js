@@ -75,6 +75,9 @@ let multiMode=false,multiSelected=new Set();
 let layers={},markers={};
 let map;
 let pendingKusa=null;
+let pendingPhotoBase64=null;
+let pendingPhotoMimeType=null;
+let pendingPhotoFileId=null;
 let editKeepMemo='';
 let bulkMemoInputRef=null;
 let bulkStatusSaved=false;
@@ -896,6 +899,15 @@ function updateMemoUI(nm){
     const contentDiv=document.createElement('div');contentDiv.className='memo-content';contentDiv.textContent=memo.content;
     const metaDiv=document.createElement('div');metaDiv.className='memo-meta';
     metaDiv.textContent=(d?d.toLocaleDateString('ja')+' '+d.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'})+' ':'')+(memo.person||'');
+    // 写真サムネイル
+    if(memo.photoId){
+      const photoThumb=document.createElement('img');
+      photoThumb.src='https://drive.google.com/uc?id='+memo.photoId+'&export=view';
+      photoThumb.style.cssText='max-width:100%;border-radius:6px;margin:6px 0;cursor:pointer;display:block;';
+      photoThumb.title='タップで拡大';
+      photoThumb.addEventListener('click',()=>window.open('https://drive.google.com/file/d/'+memo.photoId+'/view','_blank'));
+      metaDiv.appendChild(photoThumb);
+    }
     const btnRow=document.createElement('div');btnRow.style.cssText='display:flex;gap:6px;margin-top:6px;';
     const resolveBtn=document.createElement('button');resolveBtn.className='sub-btn memo-resolve-btn';
     resolveBtn.textContent='✅ 対応済み';resolveBtn.style.cssText='flex:1;background:#27ae60;color:#fff;border-color:#27ae60;font-weight:700;padding:7px;';
@@ -1153,6 +1165,9 @@ function closePanel(){
   selField=null; // 先にnullにしてからsetStyle（ハイライト解除のため）
   if(prevField){const nm=prevField.properties.name.trim();const feat=fieldFeatureMap.get(nm);if(layers[nm]&&feat)layers[nm].setStyle(getLayerStyle(nm,feat));}
   pendingKusa=null;singleSaved=false;bulkKusaSaved=false;
+  pendingPhotoBase64=null;pendingPhotoMimeType=null;pendingPhotoFileId=null;
+  const prevWrap=document.getElementById('photo-preview-wrap');if(prevWrap){prevWrap.style.display='none';}
+  const prevImg=document.getElementById('photo-preview');if(prevImg){prevImg.src='';}
   if(bulkMemoInputRef){bulkMemoInputRef.value='';bulkMemoInputRef=null;}
   bulkStatusSaved=false;bulkMemoSaved=false;bulkConfirmSaved=false;
   document.getElementById('multi-banner').style.display='none';
@@ -1170,6 +1185,30 @@ async function deleteRecord(fieldName,origTime){
   closePanel();renderMap();
 }
 async function postToGAS(body){const res=await fetch(GAS,{method:'POST',body:JSON.stringify(body)});return res.json();}
+
+// 写真圧縮（Canvas APIで長辺1200px・JPEG変換）
+function compressImage(file,maxSize,quality){
+  return new Promise((resolve)=>{
+    const img=new Image();
+    const reader=new FileReader();
+    reader.onload=(e)=>{
+      img.onload=()=>{
+        let w=img.width,h=img.height;
+        if(w>maxSize||h>maxSize){
+          if(w>h){h=Math.round(h*maxSize/w);w=maxSize;}
+          else{w=Math.round(w*maxSize/h);h=maxSize;}
+        }
+        const canvas=document.createElement('canvas');
+        canvas.width=w;canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        const dataUrl=canvas.toDataURL('image/jpeg',quality);
+        resolve({base64:dataUrl.split(',')[1],mimeType:'image/jpeg'});
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 async function safeFetch(url){try{const r=await fetch(url);return await r.json();}catch(e){return null;}}
 
 async function loadRecords(){
@@ -1276,6 +1315,28 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   document.getElementById('task-input').addEventListener('input',()=>{singleSaved=false;updateSaveBtnState();});
 
+  // 写真ボタン
+  document.getElementById('photo-btn').addEventListener('click',()=>{
+    document.getElementById('photo-input').click();
+  });
+  document.getElementById('photo-input').addEventListener('change',async(e)=>{
+    const file=e.target.files[0];if(!file)return;
+    const compressed=await compressImage(file,1200,0.82);
+    pendingPhotoBase64=compressed.base64;
+    pendingPhotoMimeType=compressed.mimeType;
+    pendingPhotoFileId=null; // 再選択したらリセット
+    const prevImg=document.getElementById('photo-preview');
+    prevImg.src='data:image/jpeg;base64,'+compressed.base64;
+    document.getElementById('photo-preview-wrap').style.display='block';
+    singleSaved=false;updateSaveBtnState();
+    e.target.value=''; // 同じファイルを再選択できるようにリセット
+  });
+  document.getElementById('photo-remove-btn').addEventListener('click',()=>{
+    pendingPhotoBase64=null;pendingPhotoMimeType=null;pendingPhotoFileId=null;
+    document.getElementById('photo-preview-wrap').style.display='none';
+    document.getElementById('photo-preview').src='';
+  });
+
   document.getElementById('savebtn').addEventListener('click',async()=>{
     // 一括処理を最優先で判定（早期returnより前に置く）
     // 水尻一括
@@ -1366,7 +1427,17 @@ document.addEventListener('DOMContentLoaded',()=>{
       payload.water={status:waterNewS,checkedOnly:selStatus==='確認のみ',memo:'',time};
     }
     if(pendingKusa)payload.kusa=pendingKusa;
-    if(hasMemoToAdd)payload.memo={content:memoText};
+    if(hasMemoToAdd){
+      // 写真がある場合はまず写真をアップロード（初回のみ）
+      let photoId=pendingPhotoFileId||'';
+      if(pendingPhotoBase64&&!pendingPhotoFileId){
+        try{
+          const pr=await postToGAS({action:'photo_upload',base64:pendingPhotoBase64,mimeType:pendingPhotoMimeType||'image/jpeg'});
+          if(pr&&pr.fileId){photoId=pr.fileId;pendingPhotoFileId=pr.fileId;}
+        }catch(e){/* 写真アップロード失敗時はメモだけ保存を続行 */}
+      }
+      payload.memo={content:memoText,photoId};
+    }
 
     // 中干し→水尻外し連動
     let mizushiWithKandoshi=false;
