@@ -911,6 +911,7 @@ function updateMemoUI(nm){
       zoomHint.textContent='🔍 タップで拡大';
       photoThumb.addEventListener('click',()=>showPhotoLightbox(memo.photoId));
       photoWrap.appendChild(photoThumb);photoWrap.appendChild(zoomHint);
+      photoWrap.appendChild(buildPhotoEditRow(nm,memo.time,'before'));
       metaDiv.appendChild(photoWrap);
     } else {
       // 写真未添付の場合：追加ボタンを表示
@@ -1001,6 +1002,7 @@ function updateMemoUI(nm){
         histThumb.onerror=()=>{histThumb.src='https://drive.google.com/uc?export=view&id='+photoId;};
         histThumb.addEventListener('click',()=>showPhotoLightbox(photoId));
         row.appendChild(label);row.appendChild(histThumb);
+        row.appendChild(buildPhotoEditRow(h[0],h[3],'before'));
       }
       // 対応済み写真（after）
       if(h[8]){
@@ -1012,6 +1014,7 @@ function updateMemoUI(nm){
         histThumb.onerror=()=>{histThumb.src='https://drive.google.com/uc?export=view&id='+photoId;};
         histThumb.addEventListener('click',()=>showPhotoLightbox(photoId));
         row.appendChild(label);row.appendChild(histThumb);
+        row.appendChild(buildPhotoEditRow(h[0],h[3],'after'));
       } else if(h[4]==='対応済み'){
         // 対応済みで写真なし→後付け追加ボタン
         const addWrap=document.createElement('div');addWrap.style.cssText='display:flex;gap:6px;margin-top:6px;';
@@ -1045,6 +1048,59 @@ function updateMemoUI(nm){
     toggle.addEventListener('click',()=>{open=!open;histWrap.style.display=open?'block':'none';toggle.textContent=(open?'▼':'▶')+' メモ履歴（'+hist.length+'件）';});
     list.appendChild(toggle);list.appendChild(histWrap);
   }
+}
+
+// 写真の差し替え・削除共通ヘルパー
+// photoType: 'before'=登録時写真(col8) / 'after'=対応後写真(col9)
+// file: Fileオブジェクト(差し替え) / null(削除)
+async function updateMemoPhoto(nm, memoTime, photoType, file){
+  const action = photoType==='before' ? 'memo_add_photo' : 'memo_add_resolve_photo';
+  let photoId='';
+  if(file){
+    try{
+      const compressed=await compressImage(file,1200,0.82);
+      const pr=await postToGAS({action:'photo_upload',base64:compressed.base64,mimeType:'image/jpeg'});
+      if(!pr||!pr.fileId){showToast('⚠️ 写真のアップロードに失敗しました');return;}
+      photoId=pr.fileId;
+    }catch(e){showToast('⚠️ 写真アップロードエラー：'+e.message);return;}
+  }
+  try{
+    await postToGAS({action,name:nm,memoTime,photoId});
+    await loadRecords();updateMemoUI(nm);
+  }catch(e){showToast('⚠️ 写真の更新に失敗しました');}
+}
+
+// 写真編集ボタン行を生成するヘルパー
+function buildPhotoEditRow(nm, memoTime, photoType){
+  const row=document.createElement('div');row.style.cssText='display:flex;gap:6px;margin-top:4px;';
+  const inputCamera=document.createElement('input');inputCamera.type='file';inputCamera.accept='image/*';inputCamera.capture='environment';inputCamera.style.display='none';
+  const inputLibrary=document.createElement('input');inputLibrary.type='file';inputLibrary.accept='image/*';inputLibrary.style.display='none';
+  const repCameraBtn=document.createElement('button');repCameraBtn.className='sub-btn';
+  repCameraBtn.textContent='📷 差し替え';repCameraBtn.style.cssText='font-size:10px;padding:3px 8px;color:#3498db;border-color:#3498db;background:#eaf4fb;';
+  const repLibraryBtn=document.createElement('button');repLibraryBtn.className='sub-btn';
+  repLibraryBtn.textContent='🖼';repLibraryBtn.style.cssText='font-size:10px;padding:3px 8px;color:#3498db;border-color:#3498db;background:#eaf4fb;';
+  const delBtn=document.createElement('button');delBtn.className='sub-btn';
+  delBtn.textContent='🗑 削除';delBtn.style.cssText='font-size:10px;padding:3px 8px;color:#e74c3c;border-color:#e74c3c;background:#fdf0f0;';
+  repCameraBtn.addEventListener('click',()=>inputCamera.click());
+  repLibraryBtn.addEventListener('click',()=>inputLibrary.click());
+  inputCamera.addEventListener('change',async(e)=>{
+    const f=e.target.files[0];e.target.value='';if(!f)return;
+    repCameraBtn.disabled=true;repLibraryBtn.disabled=true;repCameraBtn.textContent='処理中...';
+    await updateMemoPhoto(nm,memoTime,photoType,f);
+  });
+  inputLibrary.addEventListener('change',async(e)=>{
+    const f=e.target.files[0];e.target.value='';if(!f)return;
+    repCameraBtn.disabled=true;repLibraryBtn.disabled=true;repCameraBtn.textContent='処理中...';
+    await updateMemoPhoto(nm,memoTime,photoType,f);
+  });
+  delBtn.addEventListener('click',async()=>{
+    if(!confirm('写真を削除します。よろしいですか？'))return;
+    delBtn.disabled=true;delBtn.textContent='削除中...';
+    await updateMemoPhoto(nm,memoTime,photoType,null);
+  });
+  row.appendChild(repCameraBtn);row.appendChild(repLibraryBtn);row.appendChild(delBtn);
+  row.appendChild(inputCamera);row.appendChild(inputLibrary);
+  return row;
 }
 
 // 対応済みダイアログ（写真添付オプション付き）
