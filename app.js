@@ -902,7 +902,7 @@ function updateMemoUI(nm){
     // 写真サムネイル
     if(memo.photoId){
       const photoThumb=document.createElement('img');
-      photoThumb.src='https://drive.google.com/uc?id='+memo.photoId+'&export=view';
+      photoThumb.src='https://drive.google.com/thumbnail?id='+memo.photoId+'&sz=w400';
       photoThumb.style.cssText='max-width:100%;border-radius:6px;margin:6px 0;cursor:pointer;display:block;';
       photoThumb.title='タップで拡大';
       photoThumb.addEventListener('click',()=>window.open('https://drive.google.com/file/d/'+memo.photoId+'/view','_blank'));
@@ -1009,10 +1009,12 @@ function updateSaveBtnState(){
 
 function getPlantingInfoHtml(fieldId){
   const info=plantingDates[fieldId];
-  if(!info)return '';
-  const days=Math.floor((Date.now()-new Date(info.date).getTime())/86400000);
-  const parts=info.date.split('/');
-  const dateLabel=parseInt(parts[1])+'月'+parseInt(parts[2])+'日';
+  if(!info||!info.date)return '';
+  // YYYY/MM/DD・YYYY-MM-DD どちらの形式でも対応
+  const d=new Date(info.date.replace(/-/g,'/'));
+  if(isNaN(d.getTime()))return '';
+  const days=Math.floor((Date.now()-d.getTime())/86400000);
+  const dateLabel=(d.getMonth()+1)+'月'+d.getDate()+'日';
   return '🌱 '+info.type+'後 '+days+'日目（'+dateLabel+' '+info.type+'）';
 }
 
