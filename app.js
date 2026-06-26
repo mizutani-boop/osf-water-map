@@ -942,44 +942,10 @@ function updateMemoUI(nm){
       addPhotoWrap.appendChild(addPhotoInputCamera);addPhotoWrap.appendChild(addPhotoInputLibrary);
       metaDiv.appendChild(addPhotoWrap);
     }
-    const btnRow=document.createElement('div');btnRow.style.cssText='display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;';
-    // 対応写真選択ボタン（小さめ）
-    let pendingResolvePhotoBase64=null,pendingResolvePhotoMimeType=null;
-    const rCameraBtn=document.createElement('button');rCameraBtn.className='sub-btn';
-    rCameraBtn.textContent='📷';rCameraBtn.title='対応写真をカメラで撮影';
-    rCameraBtn.style.cssText='font-size:14px;padding:5px 8px;border-color:#ddd;color:#888;background:#fafafa;flex-shrink:0;';
-    const rLibraryBtn=document.createElement('button');rLibraryBtn.className='sub-btn';
-    rLibraryBtn.textContent='🖼';rLibraryBtn.title='対応写真をライブラリから選択';
-    rLibraryBtn.style.cssText='font-size:14px;padding:5px 8px;border-color:#ddd;color:#888;background:#fafafa;flex-shrink:0;';
-    const rInputCamera=document.createElement('input');rInputCamera.type='file';rInputCamera.accept='image/*';rInputCamera.capture='environment';rInputCamera.style.display='none';
-    const rInputLibrary=document.createElement('input');rInputLibrary.type='file';rInputLibrary.accept='image/*';rInputLibrary.style.display='none';
-    const rPreview=document.createElement('div');rPreview.style.cssText='display:none;width:100%;margin-top:4px;position:relative;';
-    const rPreviewImg=document.createElement('img');rPreviewImg.style.cssText='max-width:100%;border-radius:6px;border:2px solid #27ae60;display:block;';
-    const rPreviewLabel=document.createElement('div');rPreviewLabel.style.cssText='font-size:10px;color:#27ae60;margin-top:2px;';rPreviewLabel.textContent='✅ 対応写真が選択されています';
-    const rPreviewRemove=document.createElement('button');rPreviewRemove.textContent='✕';
-    rPreviewRemove.style.cssText='position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.5);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;';
-    rPreviewRemove.addEventListener('click',()=>{pendingResolvePhotoBase64=null;pendingResolvePhotoMimeType=null;rPreview.style.display='none';rPreviewImg.src='';});
-    rPreview.appendChild(rPreviewImg);rPreview.appendChild(rPreviewLabel);rPreview.appendChild(rPreviewRemove);
-    async function handleResolvePhoto(file){
-      if(!file)return;
-      const compressed=await compressImage(file,1200,0.82);
-      pendingResolvePhotoBase64=compressed.base64;pendingResolvePhotoMimeType=compressed.mimeType;
-      rPreviewImg.src='data:image/jpeg;base64,'+compressed.base64;
-      rPreview.style.display='block';
-      rCameraBtn.style.borderColor='#27ae60';rCameraBtn.style.color='#27ae60';
-      rLibraryBtn.style.borderColor='#27ae60';rLibraryBtn.style.color='#27ae60';
-    }
-    rCameraBtn.addEventListener('click',()=>rInputCamera.click());
-    rLibraryBtn.addEventListener('click',()=>rInputLibrary.click());
-    rInputCamera.addEventListener('change',async(e)=>{await handleResolvePhoto(e.target.files[0]);e.target.value='';});
-    rInputLibrary.addEventListener('change',async(e)=>{await handleResolvePhoto(e.target.files[0]);e.target.value='';});
+    const btnRow=document.createElement('div');btnRow.style.cssText='display:flex;gap:6px;margin-top:6px;';
     const resolveBtn=document.createElement('button');resolveBtn.className='sub-btn memo-resolve-btn';
     resolveBtn.textContent='✅ 対応済み';resolveBtn.style.cssText='flex:1;background:#27ae60;color:#fff;border-color:#27ae60;font-weight:700;padding:7px;';
-    resolveBtn.addEventListener('click',async()=>{
-      if(!confirm('「'+memo.content+'」\nを対応済みにします。よろしいですか？'))return;
-      resolveBtn.disabled=true;resolveBtn.textContent='送信中...';
-      await resolveMemo(nm,memo.time,pendingResolvePhotoBase64,pendingResolvePhotoMimeType);
-    });
+    resolveBtn.addEventListener('click',()=>showResolveDialog(nm,memo));
     const editBtn=document.createElement('button');editBtn.className='sub-btn';
     editBtn.textContent='✏ 編集';editBtn.style.cssText='font-size:11px;padding:5px 10px;color:#888;border-color:#ddd;background:#fafafa;';
     editBtn.addEventListener('click',()=>{
@@ -1004,9 +970,8 @@ function updateMemoUI(nm){
       wrap.insertBefore(editInput,metaDiv);
       btnRow.appendChild(saveBtn);btnRow.appendChild(cancelBtn);
     });
-    btnRow.appendChild(rCameraBtn);btnRow.appendChild(rLibraryBtn);btnRow.appendChild(resolveBtn);btnRow.appendChild(editBtn);
-    btnRow.appendChild(rInputCamera);btnRow.appendChild(rInputLibrary);
-    wrap.appendChild(contentDiv);wrap.appendChild(metaDiv);wrap.appendChild(rPreview);wrap.appendChild(btnRow);
+    btnRow.appendChild(resolveBtn);btnRow.appendChild(editBtn);
+    wrap.appendChild(contentDiv);wrap.appendChild(metaDiv);wrap.appendChild(btnRow);
     list.appendChild(wrap);
   });
   if(inputRow)inputRow.style.display='flex';
@@ -1080,6 +1045,77 @@ function updateMemoUI(nm){
     toggle.addEventListener('click',()=>{open=!open;histWrap.style.display=open?'block':'none';toggle.textContent=(open?'▼':'▶')+' メモ履歴（'+hist.length+'件）';});
     list.appendChild(toggle);list.appendChild(histWrap);
   }
+}
+
+// 対応済みダイアログ（写真添付オプション付き）
+function showResolveDialog(nm, memo){
+  const dlg=document.createElement('div');
+  dlg.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:99998;display:flex;align-items:flex-end;justify-content:center;';
+  const sheet=document.createElement('div');
+  sheet.style.cssText='background:#fff;border-radius:16px 16px 0 0;padding:20px 16px 32px;width:100%;max-width:520px;';
+
+  // タイトル
+  const title=document.createElement('div');
+  title.style.cssText='font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:4px;';
+  title.textContent='✅ 対応済みにする';
+  const sub=document.createElement('div');
+  sub.style.cssText='font-size:12px;color:#888;margin-bottom:16px;border-bottom:1px solid #eee;padding-bottom:12px;';
+  sub.textContent='「'+memo.content+'」';
+
+  // 写真プレビュー（選択後に表示）
+  const previewWrap=document.createElement('div');previewWrap.style.cssText='display:none;margin-bottom:12px;position:relative;';
+  const previewImg=document.createElement('img');previewImg.style.cssText='max-width:100%;border-radius:8px;border:2px solid #27ae60;display:block;';
+  const previewRemove=document.createElement('button');previewRemove.textContent='✕ 写真を外す';
+  previewRemove.style.cssText='margin-top:6px;font-size:11px;color:#e74c3c;border:none;background:none;cursor:pointer;padding:0;';
+  previewRemove.addEventListener('click',()=>{selectedPhotoBase64=null;selectedPhotoMimeType=null;previewImg.src='';previewWrap.style.display='none';cameraBtn.style.display='';libraryBtn.style.display='';});
+  previewWrap.appendChild(previewImg);previewWrap.appendChild(previewRemove);
+
+  let selectedPhotoBase64=null,selectedPhotoMimeType=null;
+  async function handleFile(file){
+    if(!file)return;
+    cameraBtn.disabled=true;libraryBtn.disabled=true;cameraBtn.textContent='処理中...';
+    const compressed=await compressImage(file,1200,0.82);
+    selectedPhotoBase64=compressed.base64;selectedPhotoMimeType=compressed.mimeType;
+    previewImg.src='data:image/jpeg;base64,'+compressed.base64;
+    previewWrap.style.display='block';
+    cameraBtn.style.display='none';libraryBtn.style.display='none';
+    cameraBtn.disabled=false;libraryBtn.disabled=false;cameraBtn.textContent='📷 カメラ';
+  }
+
+  // 写真ボタン
+  const photoRow=document.createElement('div');photoRow.style.cssText='display:flex;gap:8px;margin-bottom:12px;';
+  const cameraBtn=document.createElement('button');cameraBtn.className='sub-btn';
+  cameraBtn.textContent='📷 カメラ';cameraBtn.style.cssText='flex:1;padding:10px;font-size:13px;';
+  const libraryBtn=document.createElement('button');libraryBtn.className='sub-btn';
+  libraryBtn.textContent='🖼 ライブラリ';libraryBtn.style.cssText='flex:1;padding:10px;font-size:13px;';
+  const inputCamera=document.createElement('input');inputCamera.type='file';inputCamera.accept='image/*';inputCamera.capture='environment';inputCamera.style.display='none';
+  const inputLibrary=document.createElement('input');inputLibrary.type='file';inputLibrary.accept='image/*';inputLibrary.style.display='none';
+  cameraBtn.addEventListener('click',()=>inputCamera.click());
+  libraryBtn.addEventListener('click',()=>inputLibrary.click());
+  inputCamera.addEventListener('change',async(e)=>{await handleFile(e.target.files[0]);e.target.value='';});
+  inputLibrary.addEventListener('change',async(e)=>{await handleFile(e.target.files[0]);e.target.value='';});
+  photoRow.appendChild(cameraBtn);photoRow.appendChild(libraryBtn);
+  photoRow.appendChild(inputCamera);photoRow.appendChild(inputLibrary);
+
+  // 対応済みボタン
+  const confirmBtn=document.createElement('button');
+  confirmBtn.style.cssText='width:100%;padding:13px;background:#27ae60;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:8px;';
+  confirmBtn.textContent='✅ 対応済みにする';
+  confirmBtn.addEventListener('click',async()=>{
+    confirmBtn.disabled=true;confirmBtn.textContent='送信中...';
+    dlg.remove();
+    await resolveMemo(nm,memo.time,selectedPhotoBase64,selectedPhotoMimeType);
+  });
+
+  // キャンセル
+  const cancelBtn=document.createElement('button');
+  cancelBtn.style.cssText='width:100%;padding:10px;background:#f5f5f5;border:none;border-radius:10px;font-size:13px;cursor:pointer;color:#666;';
+  cancelBtn.textContent='キャンセル';
+  cancelBtn.addEventListener('click',()=>dlg.remove());
+  dlg.addEventListener('click',(e)=>{if(e.target===dlg)dlg.remove();});
+
+  sheet.appendChild(title);sheet.appendChild(sub);sheet.appendChild(previewWrap);sheet.appendChild(photoRow);sheet.appendChild(confirmBtn);sheet.appendChild(cancelBtn);
+  dlg.appendChild(sheet);document.body.appendChild(dlg);
 }
 
 async function resolveMemo(nm,memoTime,resolvePhotoBase64,resolvePhotoMimeType){
