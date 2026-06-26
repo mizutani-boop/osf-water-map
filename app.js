@@ -1469,7 +1469,8 @@ document.addEventListener('DOMContentLoaded',()=>{
         try{
           const pr=await postToGAS({action:'photo_upload',base64:pendingPhotoBase64,mimeType:pendingPhotoMimeType||'image/jpeg'});
           if(pr&&pr.fileId){photoId=pr.fileId;pendingPhotoFileId=pr.fileId;}
-        }catch(e){/* 写真アップロード失敗時はメモだけ保存を続行 */}
+          else{showToast('⚠️ 写真のアップロードに失敗（'+(pr&&pr.error||'不明')+'）メモは保存します');}
+        }catch(e){showToast('⚠️ 写真アップロードエラー：'+e.message);}
       }
       payload.memo={content:memoText,photoId};
     }
