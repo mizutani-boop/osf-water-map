@@ -912,6 +912,35 @@ function updateMemoUI(nm){
       photoThumb.addEventListener('click',()=>showPhotoLightbox(memo.photoId));
       photoWrap.appendChild(photoThumb);photoWrap.appendChild(zoomHint);
       metaDiv.appendChild(photoWrap);
+    } else {
+      // 写真未添付の場合：追加ボタンを表示
+      const addPhotoWrap=document.createElement('div');addPhotoWrap.style.cssText='margin-top:6px;display:flex;gap:6px;';
+      const addCameraBtn=document.createElement('button');addCameraBtn.className='sub-btn';
+      addCameraBtn.textContent='📷 写真を追加';
+      addCameraBtn.style.cssText='font-size:11px;padding:4px 10px;color:#888;border-color:#ddd;background:#fafafa;';
+      const addLibraryBtn=document.createElement('button');addLibraryBtn.className='sub-btn';
+      addLibraryBtn.textContent='🖼 ライブラリ';
+      addLibraryBtn.style.cssText='font-size:11px;padding:4px 10px;color:#888;border-color:#ddd;background:#fafafa;';
+      const addPhotoInputCamera=document.createElement('input');addPhotoInputCamera.type='file';addPhotoInputCamera.accept='image/*';addPhotoInputCamera.capture='environment';addPhotoInputCamera.style.display='none';
+      const addPhotoInputLibrary=document.createElement('input');addPhotoInputLibrary.type='file';addPhotoInputLibrary.accept='image/*';addPhotoInputLibrary.style.display='none';
+      async function handleAddPhoto(file){
+        if(!file)return;
+        addCameraBtn.disabled=true;addLibraryBtn.disabled=true;addCameraBtn.textContent='アップロード中...';
+        try{
+          const compressed=await compressImage(file,1200,0.82);
+          const pr=await postToGAS({action:'photo_upload',base64:compressed.base64,mimeType:'image/jpeg'});
+          if(!pr||!pr.fileId){showToast('⚠️ 写真のアップロードに失敗しました');addCameraBtn.disabled=false;addLibraryBtn.disabled=false;addCameraBtn.textContent='📷 写真を追加';return;}
+          await postToGAS({action:'memo_add_photo',name:nm,memoTime:memo.time,photoId:pr.fileId});
+          await loadRecords();updateMemoUI(nm);
+        }catch(e){showToast('⚠️ 写真追加エラー：'+e.message);addCameraBtn.disabled=false;addLibraryBtn.disabled=false;addCameraBtn.textContent='📷 写真を追加';}
+      }
+      addCameraBtn.addEventListener('click',()=>addPhotoInputCamera.click());
+      addLibraryBtn.addEventListener('click',()=>addPhotoInputLibrary.click());
+      addPhotoInputCamera.addEventListener('change',async(e)=>{await handleAddPhoto(e.target.files[0]);e.target.value='';});
+      addPhotoInputLibrary.addEventListener('change',async(e)=>{await handleAddPhoto(e.target.files[0]);e.target.value='';});
+      addPhotoWrap.appendChild(addCameraBtn);addPhotoWrap.appendChild(addLibraryBtn);
+      addPhotoWrap.appendChild(addPhotoInputCamera);addPhotoWrap.appendChild(addPhotoInputLibrary);
+      metaDiv.appendChild(addPhotoWrap);
     }
     const btnRow=document.createElement('div');btnRow.style.cssText='display:flex;gap:6px;margin-top:6px;';
     const resolveBtn=document.createElement('button');resolveBtn.className='sub-btn memo-resolve-btn';
@@ -1350,22 +1379,21 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   document.getElementById('task-input').addEventListener('input',()=>{singleSaved=false;updateSaveBtnState();});
 
-  // 写真ボタン
-  document.getElementById('photo-btn').addEventListener('click',()=>{
-    document.getElementById('photo-input').click();
-  });
-  document.getElementById('photo-input').addEventListener('change',async(e)=>{
-    const file=e.target.files[0];if(!file)return;
+  // 写真ボタン（カメラ・ライブラリ）
+  async function handlePhotoFile(file){
+    if(!file)return;
     const compressed=await compressImage(file,1200,0.82);
     pendingPhotoBase64=compressed.base64;
     pendingPhotoMimeType=compressed.mimeType;
-    pendingPhotoFileId=null; // 再選択したらリセット
-    const prevImg=document.getElementById('photo-preview');
-    prevImg.src='data:image/jpeg;base64,'+compressed.base64;
+    pendingPhotoFileId=null;
+    document.getElementById('photo-preview').src='data:image/jpeg;base64,'+compressed.base64;
     document.getElementById('photo-preview-wrap').style.display='block';
     singleSaved=false;updateSaveBtnState();
-    e.target.value=''; // 同じファイルを再選択できるようにリセット
-  });
+  }
+  document.getElementById('photo-camera-btn').addEventListener('click',()=>document.getElementById('photo-input-camera').click());
+  document.getElementById('photo-library-btn').addEventListener('click',()=>document.getElementById('photo-input-library').click());
+  document.getElementById('photo-input-camera').addEventListener('change',async(e)=>{await handlePhotoFile(e.target.files[0]);e.target.value='';});
+  document.getElementById('photo-input-library').addEventListener('change',async(e)=>{await handlePhotoFile(e.target.files[0]);e.target.value='';});
   document.getElementById('photo-remove-btn').addEventListener('click',()=>{
     pendingPhotoBase64=null;pendingPhotoMimeType=null;pendingPhotoFileId=null;
     document.getElementById('photo-preview-wrap').style.display='none';

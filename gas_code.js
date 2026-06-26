@@ -601,7 +601,21 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify({ok: true})).setMimeType(ContentService.MimeType.JSON);
   }
 
-  // 5c. メモ編集
+  // 5c. 既存メモへの写真追加
+  if (data.action === 'memo_add_photo') {
+    const sheet = getMemoSheet();
+    const rows = sheet.getDataRange().getValues();
+    for (let i = rows.length - 1; i >= 1; i--) {
+      if (rows[i][0] === data.name && rows[i][4] === '未対応' &&
+          Math.abs(new Date(rows[i][3]).getTime() - new Date(data.memoTime).getTime()) < 1000) {
+        sheet.getRange(i + 1, 8).setValue(data.photoId);
+        break;
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({ok: true})).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // 5d. メモ編集
   if (data.action === 'memo_edit') {
     const sheet = getMemoSheet();
     const rows = sheet.getDataRange().getValues();
