@@ -899,14 +899,19 @@ function updateMemoUI(nm){
     const contentDiv=document.createElement('div');contentDiv.className='memo-content';contentDiv.textContent=memo.content;
     const metaDiv=document.createElement('div');metaDiv.className='memo-meta';
     metaDiv.textContent=(d?d.toLocaleDateString('ja')+' '+d.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'})+' ':'')+(memo.person||'');
-    // 写真サムネイル
+    // 写真サムネイル（未対応メモ）
     if(memo.photoId){
+      const photoWrap=document.createElement('div');photoWrap.style.cssText='margin:6px 0;position:relative;';
       const photoThumb=document.createElement('img');
       photoThumb.src='https://drive.google.com/thumbnail?id='+memo.photoId+'&sz=w400';
-      photoThumb.style.cssText='max-width:100%;border-radius:6px;margin:6px 0;cursor:pointer;display:block;';
-      photoThumb.title='タップで拡大';
-      photoThumb.addEventListener('click',()=>window.open('https://drive.google.com/file/d/'+memo.photoId+'/view','_blank'));
-      metaDiv.appendChild(photoThumb);
+      photoThumb.style.cssText='max-width:100%;border-radius:6px;cursor:pointer;display:block;';
+      photoThumb.onerror=()=>{photoThumb.src='https://drive.google.com/uc?export=view&id='+memo.photoId;};
+      const zoomHint=document.createElement('div');
+      zoomHint.style.cssText='position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,0.45);color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;pointer-events:none;';
+      zoomHint.textContent='🔍 タップで拡大';
+      photoThumb.addEventListener('click',()=>showPhotoLightbox(memo.photoId));
+      photoWrap.appendChild(photoThumb);photoWrap.appendChild(zoomHint);
+      metaDiv.appendChild(photoWrap);
     }
     const btnRow=document.createElement('div');btnRow.style.cssText='display:flex;gap:6px;margin-top:6px;';
     const resolveBtn=document.createElement('button');resolveBtn.className='sub-btn memo-resolve-btn';
@@ -958,7 +963,18 @@ function updateMemoUI(nm){
         const rdStr=rd?rd.toLocaleDateString('ja')+' '+rd.toLocaleTimeString('ja',{hour:'2-digit',minute:'2-digit'}):'';
         html+='<br><span style="color:#27ae60">✅ 対応済：'+rdStr+' '+(h[5]||'')+'</span>';
       }else if(h[4]==='未対応'){html+='<br><span style="color:#e67e22">● 未対応</span>';}
-      row.innerHTML=html;histWrap.appendChild(row);
+      row.innerHTML=html;
+      // 写真サムネイル（履歴）
+      if(h[7]){
+        const photoId=h[7];
+        const histThumb=document.createElement('img');
+        histThumb.src='https://drive.google.com/thumbnail?id='+photoId+'&sz=w300';
+        histThumb.style.cssText='max-width:100%;border-radius:6px;margin-top:5px;cursor:pointer;display:block;opacity:0.85;';
+        histThumb.onerror=()=>{histThumb.src='https://drive.google.com/uc?export=view&id='+photoId;};
+        histThumb.addEventListener('click',()=>showPhotoLightbox(photoId));
+        row.appendChild(histThumb);
+      }
+      histWrap.appendChild(row);
     });
     toggle.addEventListener('click',()=>{open=!open;histWrap.style.display=open?'block':'none';toggle.textContent=(open?'▼':'▶')+' メモ履歴（'+hist.length+'件）';});
     list.appendChild(toggle);list.appendChild(histWrap);
@@ -1187,6 +1203,23 @@ async function deleteRecord(fieldName,origTime){
   closePanel();renderMap();
 }
 async function postToGAS(body){const res=await fetch(GAS,{method:'POST',body:JSON.stringify(body)});return res.json();}
+
+// 写真ライトボックス（タップで拡大・ピンチズーム対応）
+function showPhotoLightbox(fileId){
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.92);z-index:99999;display:flex;align-items:center;justify-content:center;';
+  const img=document.createElement('img');
+  img.src='https://drive.google.com/uc?export=view&id='+fileId;
+  img.style.cssText='max-width:100%;max-height:90vh;object-fit:contain;touch-action:pan-x pan-y pinch-zoom;border-radius:6px;';
+  img.onerror=()=>{img.src='https://drive.google.com/thumbnail?id='+fileId+'&sz=w800';};
+  const closeBtn=document.createElement('button');
+  closeBtn.textContent='✕';
+  closeBtn.style.cssText='position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.2);color:#fff;border:none;border-radius:50%;width:40px;height:40px;font-size:20px;cursor:pointer;z-index:100000;';
+  closeBtn.addEventListener('click',()=>ov.remove());
+  ov.addEventListener('click',(e)=>{if(e.target===ov)ov.remove();});
+  ov.appendChild(img);ov.appendChild(closeBtn);
+  document.body.appendChild(ov);
+}
 
 // 写真圧縮（Canvas APIで長辺1200px・JPEG変換）
 function compressImage(file,maxSize,quality){
