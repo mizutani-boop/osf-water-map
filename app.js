@@ -38,7 +38,7 @@ function cleanCropName(name) {
 }
 
 let records={},allHist=[],kusaData={},memoData={},memoHistAll=[];
-let mizushiData={},ankyoMaster={},ankyoOpData={};
+let mizushiData={},ankyoMaster={},ankyoOpData={},plantingDates={};
 let statusFilters=new Set();
 let mode='date',selBlocks=new Set(),selCrops=new Set(),alertFilters=new Set(),mizushiFilters=new Set(),ankyoFilters=new Set(),ankyoSpecialFilter=false;
 
@@ -995,6 +995,15 @@ function updateSaveBtnState(){
   }
 }
 
+function getPlantingInfoHtml(fieldId){
+  const info=plantingDates[fieldId];
+  if(!info)return '';
+  const days=Math.floor((Date.now()-new Date(info.date).getTime())/86400000);
+  const parts=info.date.split('/');
+  const dateLabel=parseInt(parts[1])+'月'+parseInt(parts[2])+'日';
+  return '🌱 '+info.type+'後 '+days+'日目（'+dateLabel+' '+info.type+'）';
+}
+
 function openPanel(feat){
   const p=feat.properties;selField=feat;selStatus=null;pendingKusa=null;histOpen=false;exitEditMode();
   document.getElementById('pt').textContent=p.name.trim();
@@ -1012,6 +1021,9 @@ function openPanel(feat){
   }else{
     pl.textContent='最終確認：未記録';pl.style.cssText='background:#fff8f0;color:#e67e22;padding:7px 10px;border-radius:8px;';ht.style.display='none';
   }
+  // 田植日表示
+  const ptEl=document.getElementById('planting-info');
+  if(ptEl){const ptText=getPlantingInfoHtml(p.field_id);ptEl.textContent=ptText;ptEl.style.display=ptText?'block':'none';}
   document.getElementById('kusa-section').style.display='none';
   document.getElementById('task-section').style.display='none';
   // バッジボタンの状態をリセット
@@ -1134,6 +1146,7 @@ function toggleHist(){
 function closePanel(){
   document.getElementById('panel').classList.remove('open');
   document.getElementById('overlay').classList.remove('on');
+  const ptEl2=document.getElementById('planting-info');if(ptEl2)ptEl2.style.display='none';
   exitEditMode();
   // ハイライト解除
   const prevField=selField;
@@ -1171,6 +1184,7 @@ async function loadRecords(){
     if(r.mizushi&&typeof r.mizushi==='object')mizushiData=r.mizushi;
     if(r.ankyoMaster&&typeof r.ankyoMaster==='object')ankyoMaster=r.ankyoMaster;
     if(r.ankyoOp&&typeof r.ankyoOp==='object')ankyoOpData=r.ankyoOp;
+    if(r.plantingDates&&typeof r.plantingDates==='object')plantingDates=r.plantingDates;
     // [NEW] 設定シートから水管理項目を反映
     if(r.settings&&r.settings.status_items&&Array.isArray(r.settings.status_items)){
       // 全項目を保持（管理者画面でOFF項目も表示するため）
