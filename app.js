@@ -1073,24 +1073,15 @@ async function updateMemoPhoto(nm, memoTime, photoType, file){
 // 写真編集ボタン行を生成するヘルパー
 function buildPhotoEditRow(nm, memoTime, photoType){
   const row=document.createElement('div');row.style.cssText='display:flex;gap:6px;margin-top:4px;';
-  const inputCamera=document.createElement('input');inputCamera.type='file';inputCamera.accept='image/*';inputCamera.capture='environment';inputCamera.style.display='none';
-  const inputLibrary=document.createElement('input');inputLibrary.type='file';inputLibrary.accept='image/*';inputLibrary.style.display='none';
-  const repCameraBtn=document.createElement('button');repCameraBtn.className='sub-btn';
-  repCameraBtn.textContent='📷 差し替え';repCameraBtn.style.cssText='font-size:10px;padding:3px 8px;color:#3498db;border-color:#3498db;background:#eaf4fb;';
-  const repLibraryBtn=document.createElement('button');repLibraryBtn.className='sub-btn';
-  repLibraryBtn.textContent='🖼';repLibraryBtn.style.cssText='font-size:10px;padding:3px 8px;color:#3498db;border-color:#3498db;background:#eaf4fb;';
+  const input=document.createElement('input');input.type='file';input.accept='image/*';input.style.display='none';
+  const repBtn=document.createElement('button');repBtn.className='sub-btn';
+  repBtn.textContent='🔄 差し替え';repBtn.style.cssText='font-size:10px;padding:3px 8px;color:#3498db;border-color:#3498db;background:#eaf4fb;';
   const delBtn=document.createElement('button');delBtn.className='sub-btn';
   delBtn.textContent='🗑 削除';delBtn.style.cssText='font-size:10px;padding:3px 8px;color:#e74c3c;border-color:#e74c3c;background:#fdf0f0;';
-  repCameraBtn.addEventListener('click',()=>inputCamera.click());
-  repLibraryBtn.addEventListener('click',()=>inputLibrary.click());
-  inputCamera.addEventListener('change',async(e)=>{
+  repBtn.addEventListener('click',()=>input.click());
+  input.addEventListener('change',async(e)=>{
     const f=e.target.files[0];e.target.value='';if(!f)return;
-    repCameraBtn.disabled=true;repLibraryBtn.disabled=true;repCameraBtn.textContent='処理中...';
-    await updateMemoPhoto(nm,memoTime,photoType,f);
-  });
-  inputLibrary.addEventListener('change',async(e)=>{
-    const f=e.target.files[0];e.target.value='';if(!f)return;
-    repCameraBtn.disabled=true;repLibraryBtn.disabled=true;repCameraBtn.textContent='処理中...';
+    repBtn.disabled=true;delBtn.disabled=true;repBtn.textContent='処理中...';
     await updateMemoPhoto(nm,memoTime,photoType,f);
   });
   delBtn.addEventListener('click',async()=>{
@@ -1098,8 +1089,7 @@ function buildPhotoEditRow(nm, memoTime, photoType){
     delBtn.disabled=true;delBtn.textContent='削除中...';
     await updateMemoPhoto(nm,memoTime,photoType,null);
   });
-  row.appendChild(repCameraBtn);row.appendChild(repLibraryBtn);row.appendChild(delBtn);
-  row.appendChild(inputCamera);row.appendChild(inputLibrary);
+  row.appendChild(repBtn);row.appendChild(delBtn);row.appendChild(input);
   return row;
 }
 
