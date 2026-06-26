@@ -942,11 +942,43 @@ function updateMemoUI(nm){
       addPhotoWrap.appendChild(addPhotoInputCamera);addPhotoWrap.appendChild(addPhotoInputLibrary);
       metaDiv.appendChild(addPhotoWrap);
     }
-    const btnRow=document.createElement('div');btnRow.style.cssText='display:flex;gap:6px;margin-top:6px;';
+    const btnRow=document.createElement('div');btnRow.style.cssText='display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;';
+    // 対応写真選択ボタン（小さめ）
+    let pendingResolvePhotoBase64=null,pendingResolvePhotoMimeType=null;
+    const rCameraBtn=document.createElement('button');rCameraBtn.className='sub-btn';
+    rCameraBtn.textContent='📷';rCameraBtn.title='対応写真をカメラで撮影';
+    rCameraBtn.style.cssText='font-size:14px;padding:5px 8px;border-color:#ddd;color:#888;background:#fafafa;flex-shrink:0;';
+    const rLibraryBtn=document.createElement('button');rLibraryBtn.className='sub-btn';
+    rLibraryBtn.textContent='🖼';rLibraryBtn.title='対応写真をライブラリから選択';
+    rLibraryBtn.style.cssText='font-size:14px;padding:5px 8px;border-color:#ddd;color:#888;background:#fafafa;flex-shrink:0;';
+    const rInputCamera=document.createElement('input');rInputCamera.type='file';rInputCamera.accept='image/*';rInputCamera.capture='environment';rInputCamera.style.display='none';
+    const rInputLibrary=document.createElement('input');rInputLibrary.type='file';rInputLibrary.accept='image/*';rInputLibrary.style.display='none';
+    const rPreview=document.createElement('div');rPreview.style.cssText='display:none;width:100%;margin-top:4px;position:relative;';
+    const rPreviewImg=document.createElement('img');rPreviewImg.style.cssText='max-width:100%;border-radius:6px;border:2px solid #27ae60;display:block;';
+    const rPreviewLabel=document.createElement('div');rPreviewLabel.style.cssText='font-size:10px;color:#27ae60;margin-top:2px;';rPreviewLabel.textContent='✅ 対応写真が選択されています';
+    const rPreviewRemove=document.createElement('button');rPreviewRemove.textContent='✕';
+    rPreviewRemove.style.cssText='position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.5);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;';
+    rPreviewRemove.addEventListener('click',()=>{pendingResolvePhotoBase64=null;pendingResolvePhotoMimeType=null;rPreview.style.display='none';rPreviewImg.src='';});
+    rPreview.appendChild(rPreviewImg);rPreview.appendChild(rPreviewLabel);rPreview.appendChild(rPreviewRemove);
+    async function handleResolvePhoto(file){
+      if(!file)return;
+      const compressed=await compressImage(file,1200,0.82);
+      pendingResolvePhotoBase64=compressed.base64;pendingResolvePhotoMimeType=compressed.mimeType;
+      rPreviewImg.src='data:image/jpeg;base64,'+compressed.base64;
+      rPreview.style.display='block';
+      rCameraBtn.style.borderColor='#27ae60';rCameraBtn.style.color='#27ae60';
+      rLibraryBtn.style.borderColor='#27ae60';rLibraryBtn.style.color='#27ae60';
+    }
+    rCameraBtn.addEventListener('click',()=>rInputCamera.click());
+    rLibraryBtn.addEventListener('click',()=>rInputLibrary.click());
+    rInputCamera.addEventListener('change',async(e)=>{await handleResolvePhoto(e.target.files[0]);e.target.value='';});
+    rInputLibrary.addEventListener('change',async(e)=>{await handleResolvePhoto(e.target.files[0]);e.target.value='';});
     const resolveBtn=document.createElement('button');resolveBtn.className='sub-btn memo-resolve-btn';
     resolveBtn.textContent='✅ 対応済み';resolveBtn.style.cssText='flex:1;background:#27ae60;color:#fff;border-color:#27ae60;font-weight:700;padding:7px;';
-    resolveBtn.addEventListener('click',()=>{
-      if(confirm('「'+memo.content+'」\nを対応済みにします。よろしいですか？'))resolveMemo(nm,memo.time);
+    resolveBtn.addEventListener('click',async()=>{
+      if(!confirm('「'+memo.content+'」\nを対応済みにします。よろしいですか？'))return;
+      resolveBtn.disabled=true;resolveBtn.textContent='送信中...';
+      await resolveMemo(nm,memo.time,pendingResolvePhotoBase64,pendingResolvePhotoMimeType);
     });
     const editBtn=document.createElement('button');editBtn.className='sub-btn';
     editBtn.textContent='✏ 編集';editBtn.style.cssText='font-size:11px;padding:5px 10px;color:#888;border-color:#ddd;background:#fafafa;';
@@ -972,8 +1004,9 @@ function updateMemoUI(nm){
       wrap.insertBefore(editInput,metaDiv);
       btnRow.appendChild(saveBtn);btnRow.appendChild(cancelBtn);
     });
-    btnRow.appendChild(resolveBtn);btnRow.appendChild(editBtn);
-    wrap.appendChild(contentDiv);wrap.appendChild(metaDiv);wrap.appendChild(btnRow);
+    btnRow.appendChild(rCameraBtn);btnRow.appendChild(rLibraryBtn);btnRow.appendChild(resolveBtn);btnRow.appendChild(editBtn);
+    btnRow.appendChild(rInputCamera);btnRow.appendChild(rInputLibrary);
+    wrap.appendChild(contentDiv);wrap.appendChild(metaDiv);wrap.appendChild(rPreview);wrap.appendChild(btnRow);
     list.appendChild(wrap);
   });
   if(inputRow)inputRow.style.display='flex';
@@ -993,15 +1026,54 @@ function updateMemoUI(nm){
         html+='<br><span style="color:#27ae60">✅ 対応済：'+rdStr+' '+(h[5]||'')+'</span>';
       }else if(h[4]==='未対応'){html+='<br><span style="color:#e67e22">● 未対応</span>';}
       row.innerHTML=html;
-      // 写真サムネイル（履歴）
+      // 登録時写真（before）
       if(h[7]){
         const photoId=h[7];
+        const label=document.createElement('div');label.style.cssText='font-size:10px;color:#aaa;margin-top:5px;';label.textContent='📷 登録時の写真';
         const histThumb=document.createElement('img');
         histThumb.src='https://drive.google.com/thumbnail?id='+photoId+'&sz=w300';
-        histThumb.style.cssText='max-width:100%;border-radius:6px;margin-top:5px;cursor:pointer;display:block;opacity:0.85;';
+        histThumb.style.cssText='max-width:100%;border-radius:6px;margin-top:3px;cursor:pointer;display:block;opacity:0.9;';
         histThumb.onerror=()=>{histThumb.src='https://drive.google.com/uc?export=view&id='+photoId;};
         histThumb.addEventListener('click',()=>showPhotoLightbox(photoId));
-        row.appendChild(histThumb);
+        row.appendChild(label);row.appendChild(histThumb);
+      }
+      // 対応済み写真（after）
+      if(h[8]){
+        const photoId=h[8];
+        const label=document.createElement('div');label.style.cssText='font-size:10px;color:#27ae60;margin-top:6px;';label.textContent='✅ 対応後の写真';
+        const histThumb=document.createElement('img');
+        histThumb.src='https://drive.google.com/thumbnail?id='+photoId+'&sz=w300';
+        histThumb.style.cssText='max-width:100%;border-radius:6px;border:1.5px solid #27ae60;margin-top:3px;cursor:pointer;display:block;';
+        histThumb.onerror=()=>{histThumb.src='https://drive.google.com/uc?export=view&id='+photoId;};
+        histThumb.addEventListener('click',()=>showPhotoLightbox(photoId));
+        row.appendChild(label);row.appendChild(histThumb);
+      } else if(h[4]==='対応済み'){
+        // 対応済みで写真なし→後付け追加ボタン
+        const addWrap=document.createElement('div');addWrap.style.cssText='display:flex;gap:6px;margin-top:6px;';
+        const aCameraBtn=document.createElement('button');aCameraBtn.className='sub-btn';
+        aCameraBtn.textContent='📷 対応写真を追加';aCameraBtn.style.cssText='font-size:11px;padding:4px 8px;color:#27ae60;border-color:#27ae60;background:#f0fff4;';
+        const aLibraryBtn=document.createElement('button');aLibraryBtn.className='sub-btn';
+        aLibraryBtn.textContent='🖼';aLibraryBtn.style.cssText='font-size:11px;padding:4px 8px;color:#27ae60;border-color:#27ae60;background:#f0fff4;';
+        const aInputCamera=document.createElement('input');aInputCamera.type='file';aInputCamera.accept='image/*';aInputCamera.capture='environment';aInputCamera.style.display='none';
+        const aInputLibrary=document.createElement('input');aInputLibrary.type='file';aInputLibrary.accept='image/*';aInputLibrary.style.display='none';
+        const memoTime=h[3];const fieldName=h[0];
+        async function handleAddResolvePhoto(file){
+          if(!file)return;
+          aCameraBtn.disabled=true;aLibraryBtn.disabled=true;aCameraBtn.textContent='アップロード中...';
+          try{
+            const compressed=await compressImage(file,1200,0.82);
+            const pr=await postToGAS({action:'photo_upload',base64:compressed.base64,mimeType:'image/jpeg'});
+            if(!pr||!pr.fileId){showToast('⚠️ 写真のアップロードに失敗しました');aCameraBtn.disabled=false;aLibraryBtn.disabled=false;aCameraBtn.textContent='📷 対応写真を追加';return;}
+            await postToGAS({action:'memo_add_resolve_photo',name:fieldName,memoTime,photoId:pr.fileId});
+            await loadRecords();updateMemoUI(nm);
+          }catch(e){showToast('⚠️ 写真追加エラー：'+e.message);aCameraBtn.disabled=false;aLibraryBtn.disabled=false;aCameraBtn.textContent='📷 対応写真を追加';}
+        }
+        aCameraBtn.addEventListener('click',()=>aInputCamera.click());
+        aLibraryBtn.addEventListener('click',()=>aInputLibrary.click());
+        aInputCamera.addEventListener('change',async(e)=>{await handleAddResolvePhoto(e.target.files[0]);e.target.value='';});
+        aInputLibrary.addEventListener('change',async(e)=>{await handleAddResolvePhoto(e.target.files[0]);e.target.value='';});
+        addWrap.appendChild(aCameraBtn);addWrap.appendChild(aLibraryBtn);addWrap.appendChild(aInputCamera);addWrap.appendChild(aInputLibrary);
+        row.appendChild(addWrap);
       }
       histWrap.appendChild(row);
     });
@@ -1010,13 +1082,19 @@ function updateMemoUI(nm){
   }
 }
 
-async function resolveMemo(nm,memoTime){
+async function resolveMemo(nm,memoTime,resolvePhotoBase64,resolvePhotoMimeType){
   if(!curUser){const n=prompt('担当者名を入力してください');if(!n)return;curUser=n;localStorage.setItem('osf_user',n);document.getElementById('ulabel').textContent=n;}
   const memos=memoData[nm]||[];
   const target=memos.find(m=>Math.abs(new Date(m.time).getTime()-new Date(memoTime).getTime())<1000);
   if(!target)return;
   try{
-    await postToGAS({action:'memo_resolve',name:nm,person:curUser,memoTime});
+    let resolvePhotoId='';
+    if(resolvePhotoBase64){
+      const pr=await postToGAS({action:'photo_upload',base64:resolvePhotoBase64,mimeType:resolvePhotoMimeType||'image/jpeg'});
+      if(pr&&pr.fileId)resolvePhotoId=pr.fileId;
+      else showToast('⚠️ 対応写真のアップロードに失敗しました。対応済みは記録します。');
+    }
+    await postToGAS({action:'memo_resolve',name:nm,person:curUser,memoTime,resolvePhotoId});
     await loadRecords();
     updateMemoUI(nm);
   }catch(e){alert('対応済みの保存に失敗しました。電波の良い場所で再度お試しください。');}

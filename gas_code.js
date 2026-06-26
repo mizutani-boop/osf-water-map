@@ -142,7 +142,7 @@ function getKusaSheet() {
 }
 
 function getMemoSheet() {
-  return getSheet('メモ記録', ['圃場名','内容','担当者','記録日時','対応状態','対応者','対応日時','photo_id']);
+  return getSheet('メモ記録', ['圃場名','内容','担当者','記録日時','対応状態','対応者','対応日時','photo_id','resolve_photo_id']);
 }
 
 
@@ -255,11 +255,11 @@ function doGet(e) {
       if (!memoRows[i][0] || memoRows[i][4] !== '未対応') continue;
       const nm = memoRows[i][0];
       if (!memo[nm]) memo[nm] = [];
-      memo[nm].push({ content: memoRows[i][1], person: memoRows[i][2], time: memoRows[i][3], photoId: memoRows[i][7]||'' });
+      memo[nm].push({ content: memoRows[i][1], person: memoRows[i][2], time: memoRows[i][3], photoId: memoRows[i][7]||'', resolvePhotoId: memoRows[i][8]||'' });
     }
 
-    // メモ履歴：全件（photo_id含む）
-    const memoHist = memoRows.slice(1).map(r => [r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]||'']);
+    // メモ履歴：全件（photo_id・resolve_photo_id含む）
+    const memoHist = memoRows.slice(1).map(r => [r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]||'', r[8]||'']);
 
     // [NEW] 設定シートから水管理項目を返す
     const settings = readSettings();
@@ -579,6 +579,21 @@ function doPost(e) {
         sheet.getRange(i + 1, 5).setValue('対応済み');
         sheet.getRange(i + 1, 6).setValue(data.person || '');
         sheet.getRange(i + 1, 7).setValue(new Date().toISOString());
+        if (data.resolvePhotoId) sheet.getRange(i + 1, 9).setValue(data.resolvePhotoId);
+        break;
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({ok: true})).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // 5-ex. 対応済みメモへの写真後付け追加
+  if (data.action === 'memo_add_resolve_photo') {
+    const sheet = getMemoSheet();
+    const rows = sheet.getDataRange().getValues();
+    for (let i = rows.length - 1; i >= 1; i--) {
+      if (rows[i][0] === data.name &&
+          Math.abs(new Date(rows[i][3]).getTime() - new Date(data.memoTime).getTime()) < 1000) {
+        sheet.getRange(i + 1, 9).setValue(data.photoId);
         break;
       }
     }
