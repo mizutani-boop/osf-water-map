@@ -1488,7 +1488,7 @@ async function loadRecords(){
     // [NEW] 設定シートから水管理項目を反映
     if(r.settings&&r.settings.kandoshi_days&&typeof r.settings.kandoshi_days==='object')kandoshiDays=r.settings.kandoshi_days;
     if(r.settings&&typeof r.settings.herb_hours==='number')herbHours=r.settings.herb_hours;
-    if(r.settings&&typeof r.settings.alert_days==='number')alertDays=r.settings.alert_days;
+    if(r.settings&&typeof r.settings.alert_thresh_days==='number')alertDays=r.settings.alert_thresh_days;
     if(r.settings&&Array.isArray(r.settings.notify_times))window._notifyTimes=r.settings.notify_times;
     if(r.settings&&r.settings.status_items&&Array.isArray(r.settings.status_items)){
       // 全項目を保持（管理者画面でOFF項目も表示するため）
@@ -1660,6 +1660,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       try{
         if(selStatus&&!bulkStatusSaved){
           await postToGAS({action:'bulk',records:targets.map(nm=>{const prev=records[nm];const newS=selStatus==='確認のみ'&&prev&&prev.status&&prev.status!=='確認のみ'?prev.status:selStatus;return{name:nm,status:newS,person:curUser,memo:'',time};})});
+          bulkStatusSaved=true; // メイン通信成功直後にシールドを展開
           // 中干し→水尻外し連動（一括）
           if(selStatus==='中干し'){
             const doMizushi=confirm(targets.length+'枚を「中干し」で記録します。\nあわせて水尻を「外し済み」にしますか？');
@@ -1677,7 +1678,6 @@ document.addEventListener('DOMContentLoaded',()=>{
               }
             }
           }
-          bulkStatusSaved=true;
         }
         if(bulkMemoText&&!bulkMemoSaved){
           await postToGAS({action:'memo_bulk',names:targets,content:bulkMemoText,person:curUser,time});
@@ -1729,13 +1729,13 @@ document.addEventListener('DOMContentLoaded',()=>{
     try{
       if(!singleSaved){
         await postToGAS(payload);
+        singleSaved=true; // メイン通信成功直後にシールドを展開（水尻連動エラー時の2重送信防止）
         if(mizushiWithKandoshi){
           await postToGAS({action:'mizushi_save',name:nm,status:'外し済み',person:curUser,time});
         }
         if(mizushiSetWithNyusui){
           await postToGAS({action:'mizushi_save',name:nm,status:'設置済み',person:curUser,time});
         }
-        singleSaved=true;
       }
       if(memoInput)memoInput.value='';
       await loadRecords();
@@ -2345,7 +2345,7 @@ async function openAlertThreshEditor(modal, box) {
     const val = parseInt(document.getElementById('admin-alert-days').value) || 4;
     saveBtn.textContent = '保存中...'; saveBtn.disabled = true;
     try {
-      await postToGAS({action:'save_settings',password:adminPassword,key:'alert_days',value:val});
+      await postToGAS({action:'save_settings',password:adminPassword,key:'alert_thresh_days',value:val});
       await loadRecords();
       showToast('✅ アラート閾値を保存しました');
       modal.remove();
@@ -2463,12 +2463,17 @@ function openStatusItemsEditor(modal, box) {
       downBtn.onclick = () => { if(idx===currentItems.length-1)return; const tmp=currentItems[idx+1]; currentItems[idx+1]=currentItems[idx]; currentItems[idx]=tmp; renderList(); };
       if(idx===currentItems.length-1)downBtn.style.opacity='0.2';
 
-      // ON/OFFトグル
+      // ON/OFFトグル（基幹ステータスはロック）
       const toggle = document.createElement('input');
       toggle.type = 'checkbox';
       toggle.checked = item.enabled;
-      toggle.style.cssText = 'width:18px;height:18px;flex-shrink:0;cursor:pointer;';
-      toggle.onchange = () => { currentItems[idx].enabled = toggle.checked; };
+      toggle.style.cssText = 'width:18px;height:18px;flex-shrink:0;'+(isLocked?'cursor:not-allowed;opacity:0.5;':'cursor:pointer;');
+      if(isLocked){
+        toggle.disabled=true;
+        toggle.title='基幹ステータスは無効化できません';
+      }else{
+        toggle.onchange=()=>{currentItems[idx].enabled=toggle.checked;};
+      }
 
       // カラーピッカー
       const colorPicker = document.createElement('input');
