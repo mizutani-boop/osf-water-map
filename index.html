@@ -32,11 +32,11 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
 .sres-item:active{background:#f5f5f5;}
 .sres-name{font-weight:700;}
 .sres-sub{font-size:10px;color:#888;margin-top:1px;}
-#filter-wrap{position:fixed;top:calc(78px + env(safe-area-inset-top, 0px));right:10px;z-index:998;}
-#crop-wrap{position:fixed;top:calc(118px + env(safe-area-inset-top, 0px));right:10px;z-index:997;}
+#right-controls{position:fixed;top:calc(78px + env(safe-area-inset-top, 0px));right:10px;z-index:995;display:flex;flex-direction:column;gap:6px;align-items:flex-end;}
 #alert-filter-btn{position:fixed;top:calc(198px + env(safe-area-inset-top, 0px));right:10px;z-index:996;padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #e74c3c;border-radius:14px;font-size:12px;font-weight:600;color:#e74c3c;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;}
 #alert-filter-btn.active{background:#e74c3c;color:#fff;}
-#multi-btn{position:fixed;top:calc(238px + env(safe-area-inset-top, 0px));right:10px;z-index:995;padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #888;border-radius:14px;font-size:12px;font-weight:600;color:#555;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;}
+#multi-btn{padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #888;border-radius:14px;font-size:12px;font-weight:600;color:#555;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;}
+#fieldid-btn{padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #888;border-radius:14px;font-size:12px;font-weight:600;color:#555;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;}
 #multi-btn.active{background:#f39c12;color:#fff;border-color:#f39c12;}
 .filter-toggle{padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #2C4A1E;border-radius:14px;font-size:12px;font-weight:600;color:#2C4A1E;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;}
 .filter-toggle.filtered{background:#2C4A1E;color:#fff;}
@@ -144,7 +144,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
     <button id="refresh-btn" onclick="loadRecords()">↻</button>
     <span id="last-update"></span>
     <button id="user-btn" onclick="changeUser()">👤 <span id="ulabel">未設定</span></button>
-    <button id="admin-btn" onclick="openAdminLogin()" style="background:#2C4A1E;color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:13px;cursor:pointer;">⚙️</button>
+    <button id="admin-btn" onclick="openSettingsMenu()" style="background:#2C4A1E;color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:13px;cursor:pointer;">⚙️</button>
   </div>
 </div>
 <div id="summary"></div>
@@ -154,44 +154,26 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;}
   <div id="search-results"></div>
 </div>
 
-<div id="filter-wrap">
-  <button class="filter-toggle" id="block-toggle-btn" onclick="toggleDropdown('block')">🗂 ブロック ▾</button>
-  <div class="filter-dropdown" id="block-menu">
-    <div id="block-options"></div>
-    <div class="filter-reset" onclick="resetFilter('block')">✕ すべて表示にリセット</div>
+<div id="right-controls">
+  <!-- 個人設定で動的生成 -->
+  <div id="dynamic-filters"></div>
+  <!-- 水尻モード専用（setMode()で表示切り替え） -->
+  <div id="mizushi-filter-wrap" style="position:relative;display:none;">
+    <button class="filter-toggle" id="mizushi-filter-btn" onclick="toggleDropdown('mizushi_status')">💧 水尻状態 ▾</button>
+    <div class="filter-dropdown" id="mizushi-status-menu"></div>
   </div>
-</div>
-<div id="crop-wrap">
-  <button class="filter-toggle" id="crop-toggle-btn" onclick="toggleDropdown('crop')">🌾 品種 ▾</button>
-  <div class="filter-dropdown" id="crop-menu">
-    <div id="crop-options"></div>
-    <div class="filter-reset" onclick="resetFilter('crop')">✕ すべて表示にリセット</div>
+  <!-- 暗渠モード専用 -->
+  <div id="ankyo-filter-wrap" style="position:relative;display:none;">
+    <button class="filter-toggle" id="ankyo-status-btn" onclick="toggleDropdown('ankyo_status')">🕳 暗渠状態 ▾</button>
+    <div class="filter-dropdown" id="ankyo-status-menu"></div>
   </div>
+  <div id="ankyo-special-wrap" style="display:none;">
+    <button class="filter-toggle" id="ankyo-special-btn" onclick="toggleAnkyoSpecialFilter()">🔧 特記事項あり</button>
+  </div>
+  <!-- 常時表示（固定） -->
+  <button id="multi-btn" onclick="toggleMultiMode()">☑ 複数選択</button>
+  <button id="fieldid-btn" onclick="toggleFieldIdLabels()"># 番号表示</button>
 </div>
-
-<!-- ★修正箇所: display:none を削除 → setMode()で表示制御 -->
-<div id="status-filter-wrap" style="position:fixed;top:calc(158px + env(safe-area-inset-top, 0px));right:10px;z-index:997;">
-  <button class="filter-toggle" id="status-filter-btn" onclick="toggleDropdown('status_filter')">💧 水状態 ▾</button>
-  <div class="filter-dropdown" id="status-filter-menu"></div>
-</div>
-
-<div id="alert-wrap" style="position:fixed;top:calc(198px + env(safe-area-inset-top, 0px));right:10px;z-index:996;">
-  <button class="filter-toggle" id="alert-toggle-btn" onclick="toggleDropdown('alert')">🚨 アラート ▾</button>
-  <div class="filter-dropdown" id="alert-menu"></div>
-</div>
-<div id="mizushi-filter-wrap" style="position:fixed;top:calc(118px + env(safe-area-inset-top, 0px));right:10px;z-index:997;display:none;">
-  <button class="filter-toggle" id="mizushi-filter-btn" onclick="toggleDropdown('mizushi_status')">💧 水尻状態 ▾</button>
-  <div class="filter-dropdown" id="mizushi-status-menu"></div>
-</div>
-<div id="ankyo-filter-wrap" style="position:fixed;top:calc(118px + env(safe-area-inset-top, 0px));right:10px;z-index:997;display:none;">
-  <button class="filter-toggle" id="ankyo-status-btn" onclick="toggleDropdown('ankyo_status')">🕳 暗渠状態 ▾</button>
-  <div class="filter-dropdown" id="ankyo-status-menu"></div>
-</div>
-<div id="ankyo-special-wrap" style="position:fixed;top:calc(198px + env(safe-area-inset-top, 0px));right:10px;z-index:996;display:none;">
-  <button class="filter-toggle" id="ankyo-special-btn" onclick="toggleAnkyoSpecialFilter()">🔧 特記事項あり</button>
-</div>
-<button id="multi-btn" onclick="toggleMultiMode()">☑ 複数選択</button>
-<button id="fieldid-btn" onclick="toggleFieldIdLabels()" style="position:fixed;top:calc(278px + env(safe-area-inset-top, 0px));right:10px;z-index:995;padding:6px 12px;background:rgba(255,255,255,0.96);border:1.5px solid #888;border-radius:14px;font-size:12px;font-weight:600;color:#555;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);white-space:nowrap;"># 番号表示</button>
 
 <div id="legend"></div>
 <div id="stats">圃場 <b id="tc">-</b> 枚<br><span id="area-total"></span><br><span id="ac" style="color:#e74c3c"></span></div>

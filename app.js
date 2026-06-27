@@ -43,6 +43,25 @@ let statusFilters=new Set();
 let mode='date',selBlocks=new Set(),selCrops=new Set(),alertFilters=new Set(),mizushiFilters=new Set(),ankyoFilters=new Set(),ankyoSpecialFilter=false;
 
 // ============================================================
+// 個人設定・フィルター定義
+// ============================================================
+const FILTER_DEFS=[
+  {id:'block',         label:'🗂 ブロック', modes:['date','status','mizushi','ankyo']},
+  {id:'planting',      label:'🌱 田植後',   modes:['date','status']},
+  {id:'alert',         label:'🚨 アラート', modes:['date','status']},
+  {id:'status_filter', label:'💧 水状態',   modes:['date','status']},
+  {id:'crop',          label:'🌾 品種',     modes:['date','status']},
+];
+const DEFAULT_PERSONAL={
+  filterOrder:   ['block','planting','alert','status_filter','crop'],
+  filterVisible: {block:true,planting:true,alert:true,status_filter:false,crop:false},
+  defaultMode:   'date',
+  plantingDefault:{minDays:0,maxDays:60,type:'all'},
+};
+let plantingFilter={active:false,minDays:0,maxDays:60,type:'all'};
+let personalSettings=null;
+
+// ============================================================
 // [NEW] O(1)インデックス: name → feature
 // ============================================================
 let GJ; // 圃場GeoJSONデータ
@@ -105,6 +124,8 @@ async function init(){
   // [NEW] O(1)インデックス構築
   GJ.features.forEach(f=>fieldFeatureMap.set(f.properties.name.trim(),f));
 
+  personalSettings=loadPersonalSettings();
+  buildRightControls();
   initMap();
   initFilters();
   updateLegend();
@@ -231,18 +252,17 @@ function initFilters(){
 }
 
 function toggleDropdown(type){
-  const ids={block:'block-menu',crop:'crop-menu',alert:'alert-menu',mizushi_status:'mizushi-status-menu',ankyo_status:'ankyo-status-menu',status_filter:'status-filter-menu'};
+  const ids={block:'block-menu',crop:'crop-menu',alert:'alert-menu',mizushi_status:'mizushi-status-menu',ankyo_status:'ankyo-status-menu',status_filter:'status-filter-menu',planting:'planting-menu'};
   const menuId=ids[type];
-  Object.values(ids).forEach(id=>{if(id!==menuId)document.getElementById(id).classList.remove('open');});
-  document.getElementById(menuId).classList.toggle('open');
+  if(!menuId)return;
+  Object.values(ids).forEach(id=>{const el=document.getElementById(id);if(el&&id!==menuId)el.classList.remove('open');});
+  document.getElementById(menuId)?.classList.toggle('open');
 }
 document.addEventListener('click',e=>{
-  if(!document.getElementById('filter-wrap').contains(e.target))document.getElementById('block-menu').classList.remove('open');
-  if(!document.getElementById('crop-wrap').contains(e.target))document.getElementById('crop-menu').classList.remove('open');
-  if(!document.getElementById('alert-wrap').contains(e.target))document.getElementById('alert-menu').classList.remove('open');
-  const mw=document.getElementById('mizushi-filter-wrap');if(mw&&!mw.contains(e.target))document.getElementById('mizushi-status-menu')?.classList.remove('open');
-  const aw=document.getElementById('ankyo-filter-wrap');if(aw&&!aw.contains(e.target))document.getElementById('ankyo-status-menu')?.classList.remove('open');
-  const sw=document.getElementById('status-filter-wrap');if(sw&&!sw.contains(e.target))document.getElementById('status-filter-menu')?.classList.remove('open');
+  const rc=document.getElementById('right-controls');
+  if(rc&&!rc.contains(e.target)){
+    document.querySelectorAll('.filter-dropdown.open').forEach(m=>m.classList.remove('open'));
+  }
 });
 
 function toggleBlock(c){
@@ -584,6 +604,10 @@ function getLayerStyle(nm,feat,modeFilterMatch,statusFilterMatch){
     }else if(alertFilters.size>0){opacity=matchesAlertFilter(nm)?0.85:0.05;}
     else if(selBlocks.size>0||selCrops.size>0){opacity=isHighlighted?0.85:0.18;}
   }
+  // 田植後フィルター（最終判定）
+  if(plantingFilter.active&&(mode==='date'||mode==='status')&&feat){
+    if(!matchesPlantingFilter(feat.properties.field_id||''))opacity=0.05;
+  }
   if(isSel||isCurrent)opacity=0.9;
   let color='#fff',weight=0.8;
   if(isSel){color='#000';weight=3.5;}
@@ -613,6 +637,7 @@ function renderMap(){
     const cropName=(feat.properties.crop||'').trim();
     const inBlock=selBlocks.size===0||selBlocks.has(blockCode);
     const inCrop=cropMatchesFilter(cropName);
+    const inPlanting=matchesPlantingFilter(feat.properties.field_id||'');
     // 水状態フィルター判定
     let inStatusFilter=true;
     if(statusFilters.size>0&&(mode==='date'||mode==='status')){
@@ -636,7 +661,7 @@ function renderMap(){
     const hasModeFilter=(mode==='mizushi'&&mizushiFilters.size>0)||(mode==='ankyo'&&(ankyoFilters.size>0||ankyoSpecialFilter));
     const hasStatusFilter=statusFilters.size>0&&(mode==='date'||mode==='status');
     if(layer)layer.setStyle(getLayerStyle(nm,feat,hasModeFilter?inModeFilter:undefined,hasStatusFilter?inStatusFilter:undefined));
-    if(inBlock&&inCrop&&inModeFilter&&inStatusFilter){
+    if(inBlock&&inCrop&&inModeFilter&&inStatusFilter&&inPlanting){
       filteredCount++;totalArea+=(parseFloat(feat.properties.area_a)||0);
       // フィルター表示中の圃場のみカウント
       if(col==='#e74c3c'&&mode==='date')a4++;
@@ -794,22 +819,9 @@ function setMode(m){
     const specBtn=document.getElementById('ankyo-special-btn');if(specBtn){specBtn.textContent='🔧 特記事項あり';specBtn.classList.remove('filtered');}
   }
   // モード別フィルター表示切り替え
-  const isMizushi=m==='mizushi';
-  const isAnkyo=m==='ankyo';
-  const isNormal=!isMizushi&&!isAnkyo;
-  const cropWrap=document.getElementById('crop-wrap');
-  const alertWrap=document.getElementById('alert-wrap');
-  const statusFilterWrap=document.getElementById('status-filter-wrap');
-  const mizushiWrap=document.getElementById('mizushi-filter-wrap');
-  const ankyoWrap=document.getElementById('ankyo-filter-wrap');
-  const ankyoSpecialWrap=document.getElementById('ankyo-special-wrap');
-  if(cropWrap)cropWrap.style.display=isNormal?'':'none';
-  if(alertWrap)alertWrap.style.display=isNormal?'':'none';
-  if(statusFilterWrap)statusFilterWrap.style.display=isNormal?'':'none';
+  const isNormal=m!=='mizushi'&&m!=='ankyo';
   if(isNormal){buildStatusFilterMenu();}
-  if(mizushiWrap)mizushiWrap.style.display=isMizushi?'':'none';
-  if(ankyoWrap)ankyoWrap.style.display=isAnkyo?'':'none';
-  if(ankyoSpecialWrap)ankyoSpecialWrap.style.display=isAnkyo?'':'none';
+  updateFilterVisibility();
   updateLegend();renderMap();
 }
 function updateLegend(){
@@ -1710,6 +1722,283 @@ document.addEventListener('DOMContentLoaded',()=>{
 // ============================================================
 
 // 管理者ログイン
+
+// ============================================================
+// 個人設定：読み書き
+// ============================================================
+function loadPersonalSettings(){
+  try{
+    const raw=localStorage.getItem('osf_personal_settings');
+    if(!raw)return JSON.parse(JSON.stringify(DEFAULT_PERSONAL));
+    const saved=JSON.parse(raw);
+    const result=JSON.parse(JSON.stringify(DEFAULT_PERSONAL));
+    if(saved.filterOrder)result.filterOrder=saved.filterOrder;
+    if(saved.filterVisible)Object.assign(result.filterVisible,saved.filterVisible);
+    if(saved.defaultMode)result.defaultMode=saved.defaultMode;
+    if(saved.plantingDefault)Object.assign(result.plantingDefault,saved.plantingDefault);
+    return result;
+  }catch(e){return JSON.parse(JSON.stringify(DEFAULT_PERSONAL));}
+}
+function savePersonalSettings(){
+  localStorage.setItem('osf_personal_settings',JSON.stringify(personalSettings));
+}
+
+// ============================================================
+// 右上コントロール動的生成
+// ============================================================
+function buildRightControls(){
+  const container=document.getElementById('dynamic-filters');
+  if(!container)return;
+  container.innerHTML='';
+  personalSettings.filterOrder.forEach(id=>{
+    const def=FILTER_DEFS.find(d=>d.id===id);
+    if(!def)return;
+    const wrap=document.createElement('div');
+    wrap.id='fw-'+id;
+    wrap.style.cssText='position:relative;display:none;';
+    if(id==='block'){
+      wrap.innerHTML='<button class="filter-toggle" id="block-toggle-btn" onclick="toggleDropdown(\'block\')">🗂 ブロック ▾</button>'
+        +'<div class="filter-dropdown" id="block-menu"><div id="block-options"></div><div class="filter-reset" onclick="resetFilter(\'block\')">✕ すべて表示にリセット</div></div>';
+    }else if(id==='planting'){
+      const pd=personalSettings.plantingDefault;
+      wrap.innerHTML='<button class="filter-toggle" id="planting-filter-btn" onclick="toggleDropdown(\'planting\')">🌱 田植後 ▾</button>'
+        +'<div class="filter-dropdown" id="planting-menu" style="padding:12px 14px;min-width:230px;">'
+        +'<div style="font-size:11px;color:#666;margin-bottom:8px;">移植後・播種後の経過日数で絞り込み</div>'
+        +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">'
+        +'<input type="number" id="pt-min" min="0" max="365" value="'+pd.minDays+'" style="width:52px;padding:5px;border:1.5px solid #ddd;border-radius:6px;font-size:14px;text-align:center;">'
+        +'<span style="font-size:12px;color:#666;">〜</span>'
+        +'<input type="number" id="pt-max" min="0" max="365" value="'+pd.maxDays+'" style="width:52px;padding:5px;border:1.5px solid #ddd;border-radius:6px;font-size:14px;text-align:center;">'
+        +'<span style="font-size:12px;color:#666;">日目</span></div>'
+        +'<div style="display:flex;gap:14px;margin-bottom:12px;flex-wrap:wrap;">'
+        +'<label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="radio" name="pt-type" value="all"'+(pd.type==='all'?' checked':'')+'>全種別</label>'
+        +'<label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="radio" name="pt-type" value="移植"'+(pd.type==='移植'?' checked':'')+'>移植のみ</label>'
+        +'<label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="radio" name="pt-type" value="播種"'+(pd.type==='播種'?' checked':'')+'>播種のみ</label></div>'
+        +'<div style="display:flex;gap:8px;">'
+        +'<button onclick="applyPlantingFilter()" style="flex:1;padding:8px;background:#2C4A1E;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">適用</button>'
+        +'<button onclick="clearPlantingFilter()" style="flex:1;padding:8px;background:#f5f5f5;color:#666;border:1px solid #ddd;border-radius:8px;font-size:12px;cursor:pointer;">クリア</button>'
+        +'</div></div>';
+    }else if(id==='alert'){
+      wrap.innerHTML='<button class="filter-toggle" id="alert-toggle-btn" onclick="toggleDropdown(\'alert\')">🚨 アラート ▾</button>'
+        +'<div class="filter-dropdown" id="alert-menu"></div>';
+    }else if(id==='status_filter'){
+      wrap.innerHTML='<button class="filter-toggle" id="status-filter-btn" onclick="toggleDropdown(\'status_filter\')">💧 水状態 ▾</button>'
+        +'<div class="filter-dropdown" id="status-filter-menu"></div>';
+    }else if(id==='crop'){
+      wrap.innerHTML='<button class="filter-toggle" id="crop-toggle-btn" onclick="toggleDropdown(\'crop\')">🌾 品種 ▾</button>'
+        +'<div class="filter-dropdown" id="crop-menu"><div id="crop-options"></div><div class="filter-reset" onclick="resetFilter(\'crop\')">✕ すべて表示にリセット</div></div>';
+    }
+    container.appendChild(wrap);
+  });
+  updateFilterVisibility();
+}
+
+function updateFilterVisibility(){
+  if(!personalSettings)return;
+  const isMizushi=mode==='mizushi';
+  const isAnkyo=mode==='ankyo';
+  personalSettings.filterOrder.forEach(id=>{
+    const def=FILTER_DEFS.find(d=>d.id===id);
+    if(!def)return;
+    const wrap=document.getElementById('fw-'+id);
+    if(!wrap)return;
+    const modeOk=def.modes.includes(mode);
+    const visOk=!!personalSettings.filterVisible[id];
+    wrap.style.display=(modeOk&&visOk)?'':'none';
+  });
+  const mw=document.getElementById('mizushi-filter-wrap');
+  const aw=document.getElementById('ankyo-filter-wrap');
+  const asw=document.getElementById('ankyo-special-wrap');
+  if(mw)mw.style.display=isMizushi?'':'none';
+  if(aw)aw.style.display=isAnkyo?'':'none';
+  if(asw)asw.style.display=isAnkyo?'':'none';
+}
+
+// ============================================================
+// 田植後フィルター
+// ============================================================
+function matchesPlantingFilter(fieldId){
+  if(!plantingFilter.active)return true;
+  if(mode!=='date'&&mode!=='status')return true;
+  const info=plantingDates[fieldId];
+  if(!info)return false;
+  const days=Math.floor((Date.now()-new Date(info.date).getTime())/86400000);
+  if(days<plantingFilter.minDays||days>plantingFilter.maxDays)return false;
+  if(plantingFilter.type!=='all'&&info.type!==plantingFilter.type)return false;
+  return true;
+}
+function applyPlantingFilter(){
+  const minEl=document.getElementById('pt-min');
+  const maxEl=document.getElementById('pt-max');
+  const typeEl=document.querySelector('input[name="pt-type"]:checked');
+  if(!minEl||!maxEl)return;
+  plantingFilter.active=true;
+  plantingFilter.minDays=parseInt(minEl.value)||0;
+  plantingFilter.maxDays=parseInt(maxEl.value)||60;
+  plantingFilter.type=typeEl?typeEl.value:'all';
+  const btn=document.getElementById('planting-filter-btn');
+  if(btn){btn.classList.add('filtered');btn.textContent='🌱 田植後（'+plantingFilter.minDays+'〜'+plantingFilter.maxDays+'日）▾';}
+  document.getElementById('planting-menu')?.classList.remove('open');
+  personalSettings.plantingDefault={minDays:plantingFilter.minDays,maxDays:plantingFilter.maxDays,type:plantingFilter.type};
+  savePersonalSettings();
+  renderMap();
+}
+function clearPlantingFilter(){
+  plantingFilter.active=false;
+  const btn=document.getElementById('planting-filter-btn');
+  if(btn){btn.classList.remove('filtered');btn.textContent='🌱 田植後 ▾';}
+  document.getElementById('planting-menu')?.classList.remove('open');
+  renderMap();
+}
+
+// ============================================================
+// 設定メニュー（個人設定 + 管理者設定の入口）
+// ============================================================
+function openSettingsMenu(){
+  const existing=document.getElementById('settings-modal');
+  if(existing)existing.remove();
+  const modal=document.createElement('div');
+  modal.id='settings-modal';
+  modal.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 0;box-sizing:border-box;';
+  const box=document.createElement('div');
+  box.style.cssText='background:#fff;border-radius:14px;width:92%;max-width:480px;padding:20px;box-shadow:0 8px 32px rgba(0,0,0,0.3);margin:auto;';
+  const header=document.createElement('div');
+  header.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;';
+  header.innerHTML='<h2 style="margin:0;font-size:17px;color:#2C4A1E">⚙️ 設定</h2>';
+  const closeBtn=document.createElement('button');
+  closeBtn.textContent='✕';
+  closeBtn.style.cssText='background:none;border:none;font-size:20px;cursor:pointer;color:#888;padding:4px 8px;';
+  closeBtn.onclick=()=>modal.remove();
+  header.appendChild(closeBtn);
+  box.appendChild(header);
+  const personalBtn=document.createElement('button');
+  personalBtn.style.cssText='width:100%;padding:14px 16px;margin-bottom:10px;border-radius:10px;border:2px solid #3498db;background:#f0f8ff;color:#1a5276;font-size:15px;font-weight:700;text-align:left;cursor:pointer;display:flex;justify-content:space-between;align-items:center;';
+  personalBtn.innerHTML='<span>👤 個人設定</span><span style="font-size:12px;font-weight:400">▶</span>';
+  personalBtn.onclick=()=>{modal.remove();openPersonalSettings();};
+  box.appendChild(personalBtn);
+  const adminBtn=document.createElement('button');
+  adminBtn.style.cssText='width:100%;padding:14px 16px;margin-bottom:10px;border-radius:10px;border:2px solid #2C4A1E;background:#f0fff4;color:#2C4A1E;font-size:15px;font-weight:700;text-align:left;cursor:pointer;display:flex;justify-content:space-between;align-items:center;';
+  adminBtn.innerHTML='<span>🔒 管理者設定</span><span style="font-size:12px;font-weight:400">▶</span>';
+  adminBtn.onclick=()=>{modal.remove();openAdminLogin();};
+  box.appendChild(adminBtn);
+  modal.appendChild(box);
+  modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+  document.body.appendChild(modal);
+}
+
+// ============================================================
+// 個人設定パネル
+// ============================================================
+function openPersonalSettings(){
+  const existing=document.getElementById('personal-modal');
+  if(existing)existing.remove();
+  const modal=document.createElement('div');
+  modal.id='personal-modal';
+  modal.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 0;box-sizing:border-box;';
+  const box=document.createElement('div');
+  box.style.cssText='background:#fff;border-radius:14px;width:92%;max-width:480px;padding:20px;box-shadow:0 8px 32px rgba(0,0,0,0.3);margin:auto;';
+  const header=document.createElement('div');
+  header.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;';
+  header.innerHTML='<h2 style="margin:0;font-size:17px;color:#1a5276">👤 個人設定</h2>';
+  const closeBtn=document.createElement('button');
+  closeBtn.textContent='✕';
+  closeBtn.style.cssText='background:none;border:none;font-size:20px;cursor:pointer;color:#888;padding:4px 8px;';
+  closeBtn.onclick=()=>modal.remove();
+  header.appendChild(closeBtn);
+  box.appendChild(header);
+  const subNote=document.createElement('p');
+  subNote.textContent='この端末のみに保存されます。';
+  subNote.style.cssText='font-size:11px;color:#888;margin:0 0 16px;';
+  box.appendChild(subNote);
+  // フィルター設定
+  const secTitle=document.createElement('h3');
+  secTitle.textContent='表示するフィルター';
+  secTitle.style.cssText='font-size:13px;color:#333;margin:0 0 4px;border-bottom:1px solid #eee;padding-bottom:6px;';
+  box.appendChild(secTitle);
+  const hint=document.createElement('p');
+  hint.textContent='▲▼ で並び順を変更できます。';
+  hint.style.cssText='font-size:11px;color:#888;margin:0 0 10px;';
+  box.appendChild(hint);
+  const filterList=document.createElement('div');
+  filterList.id='personal-filter-list';
+  renderPersonalFilterList(filterList);
+  box.appendChild(filterList);
+  // デフォルトモード
+  const modeTitle=document.createElement('h3');
+  modeTitle.textContent='起動時のモード';
+  modeTitle.style.cssText='font-size:13px;color:#333;margin:16px 0 8px;border-bottom:1px solid #eee;padding-bottom:6px;';
+  box.appendChild(modeTitle);
+  const modeWrap=document.createElement('div');
+  modeWrap.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';
+  [['date','確認日'],['status','水状態'],['mizushi','水尻'],['ankyo','暗渠']].forEach(([val,label])=>{
+    const btn=document.createElement('button');
+    btn.textContent=label;btn.dataset.mode=val;
+    const isActive=personalSettings.defaultMode===val;
+    btn.style.cssText='padding:6px 14px;border-radius:8px;border:1.5px solid '+(isActive?'#3498db':'#ddd')+';background:'+(isActive?'#ebf5fb':'#fff')+';color:'+(isActive?'#1a5276':'#666')+';font-size:12px;cursor:pointer;';
+    btn.onclick=()=>{
+      personalSettings.defaultMode=val;
+      modeWrap.querySelectorAll('button').forEach(b=>{
+        const act=b.dataset.mode===val;
+        b.style.borderColor=act?'#3498db':'#ddd';
+        b.style.background=act?'#ebf5fb':'#fff';
+        b.style.color=act?'#1a5276':'#666';
+      });
+    };
+    modeWrap.appendChild(btn);
+  });
+  box.appendChild(modeWrap);
+  // 保存ボタン
+  const saveBtn=document.createElement('button');
+  saveBtn.textContent='保存して閉じる';
+  saveBtn.style.cssText='width:100%;padding:13px;background:#3498db;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:20px;';
+  saveBtn.onclick=()=>{
+    savePersonalSettings();
+    modal.remove();
+    buildRightControls();
+    buildAlertFilterMenu();
+    buildStatusFilterMenu();
+    initFilters();
+    updateFilterVisibility();
+  };
+  box.appendChild(saveBtn);
+  modal.appendChild(box);
+  modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+  document.body.appendChild(modal);
+}
+
+function renderPersonalFilterList(container){
+  container.innerHTML='';
+  personalSettings.filterOrder.forEach((id,idx)=>{
+    const def=FILTER_DEFS.find(d=>d.id===id);
+    if(!def)return;
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0;';
+    const chk=document.createElement('input');
+    chk.type='checkbox';chk.checked=!!personalSettings.filterVisible[id];
+    chk.style.cssText='width:18px;height:18px;cursor:pointer;accent-color:#2C4A1E;';
+    chk.onchange=()=>{personalSettings.filterVisible[id]=chk.checked;};
+    const lbl=document.createElement('span');
+    lbl.textContent=def.label;lbl.style.cssText='flex:1;font-size:13px;';
+    const upBtn=document.createElement('button');
+    upBtn.textContent='▲';
+    upBtn.style.cssText='padding:4px 8px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:11px;'+(idx===0?'opacity:0.3;pointer-events:none;':'');
+    upBtn.onclick=()=>{
+      if(idx===0)return;
+      [personalSettings.filterOrder[idx-1],personalSettings.filterOrder[idx]]=[personalSettings.filterOrder[idx],personalSettings.filterOrder[idx-1]];
+      renderPersonalFilterList(container);
+    };
+    const dnBtn=document.createElement('button');
+    dnBtn.textContent='▼';
+    dnBtn.style.cssText='padding:4px 8px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:11px;'+(idx===personalSettings.filterOrder.length-1?'opacity:0.3;pointer-events:none;':'');
+    dnBtn.onclick=()=>{
+      if(idx===personalSettings.filterOrder.length-1)return;
+      [personalSettings.filterOrder[idx],personalSettings.filterOrder[idx+1]]=[personalSettings.filterOrder[idx+1],personalSettings.filterOrder[idx]];
+      renderPersonalFilterList(container);
+    };
+    row.appendChild(chk);row.appendChild(lbl);row.appendChild(upBtn);row.appendChild(dnBtn);
+    container.appendChild(row);
+  });
+}
+
 async function openAdminLogin() {
   const pw = prompt('管理者パスワードを入力してください');
   if (pw === null) return;
@@ -1733,9 +2022,11 @@ function openAdminMenu() {
   if (existing) existing.remove();
 
   const ADMIN_SECTIONS = [
-    { id: 'status_items', label: '📋 水管理項目の設定', status: 'active' },
-    { id: 'mizushi_init', label: '💧 水尻を全圃場 設置済みに一括登録', status: 'active' },
-    { id: 'alert_thresh', label: '🚨 アラート閾値の設定', status: 'planned' },
+    { id: 'status_items', label: '📋 水管理項目の設定',         status: 'active' },
+    { id: 'water_rules',  label: '💧 水管理ルール（除草剤・中干し）', status: 'planned' },
+    { id: 'alert_thresh', label: '🚨 アラート閾値の設定',        status: 'planned' },
+    { id: 'notify',       label: '🔔 LINE WORKS通知設定',        status: 'planned' },
+    { id: 'data_mgmt',    label: '🗄 データ管理',               status: 'planned' },
   ];
 
   const modal = document.createElement('div');
@@ -1747,7 +2038,7 @@ function openAdminMenu() {
 
   const header = document.createElement('div');
   header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;';
-  header.innerHTML = '<h2 style="margin:0;font-size:17px;color:#2C4A1E">⚙️ 管理者メニュー</h2>';
+  header.innerHTML = '<h2 style="margin:0;font-size:17px;color:#2C4A1E">🔒 管理者設定</h2>';
   const closeBtn = document.createElement('button');
   closeBtn.textContent = '✕';
   closeBtn.style.cssText = 'background:none;border:none;font-size:20px;cursor:pointer;color:#888;padding:4px 8px;';
