@@ -64,6 +64,8 @@ let plantingFilter={active:false,minDays:0,maxDays:60,type:'all'};
 let kandoshiFilter=new Set(); // 'active'/'done' の複数選択可
 let nakaboshiIndex={}; // {圃場名:{start:ISO, end:ISO|null}}
 let kandoshiDays={}; // {品種グループ名:日数} - 管理者設定から
+let herbHours=72; // 除草剤カウントダウン時間（管理者設定から）
+let alertDays=4;  // 要確認アラート閾値（管理者設定から）
 let personalSettings=null;
 
 // ============================================================
@@ -548,8 +550,8 @@ function openMultiPanel(){
   updateSaveBtnState();
 }
 
-function herbActive(rec){if(!rec||rec.status!=='除草剤投入')return false;return(Date.now()-new Date(rec.time).getTime())/3600000<72;}
-function herbRemain(rec){const h=72-(Date.now()-new Date(rec.time).getTime())/3600000;if(h<=0)return '間もなく終了';return Math.floor(h)+'時間'+Math.floor((h%1)*60)+'分';}
+function herbActive(rec){if(!rec||rec.status!=='除草剤投入')return false;return(Date.now()-new Date(rec.time).getTime())/3600000<herbHours;}
+function herbRemain(rec){const h=herbHours-(Date.now()-new Date(rec.time).getTime())/3600000;if(h<=0)return '間もなく終了';return Math.floor(h)+'時間'+Math.floor((h%1)*60)+'分';}
 
 function fieldColor(nm){
   if(mode==='mizushi'){
@@ -785,7 +787,7 @@ function updateSummary(){
     const inCrop=cropMatchesFilter(cropName);
     if(!inBlock||!inCrop)return;
     const r=records[nm];
-    if(r&&!herbActive(r)&&(Date.now()-new Date(r.time).getTime())/86400000>=4)d4++;
+    if(r&&!herbActive(r)&&(Date.now()-new Date(r.time).getTime())/86400000>=alertDays)d4++;
   });
   // S_OPTSの順番でサマリーを動的生成
   const items=[{l:'未記録',c:'#95a5a6',n:unr}];
@@ -799,7 +801,7 @@ function updateSummary(){
     if(S_OPTS.includes(k))return;
     if(cnt[k]>0)items.push({l:k,c:S_COL[k]||'#115522',n:cnt[k]});
   });
-  if(d4>0)items.push({l:'要確認(4日超)',c:'#e74c3c',n:d4});
+  if(d4>0)items.push({l:'要確認('+alertDays+'日超)',c:'#e74c3c',n:d4});
   const filteredItems=items.filter(i=>i.n>0);
   document.getElementById('summary').innerHTML=filteredItems.map(i=>
     '<div class="sum-item"><div class="sum-dot" style="background:'+i.c+'"></div>'+i.l+' <span class="sum-num">'+i.n+'</span></div>'
@@ -1485,6 +1487,9 @@ async function loadRecords(){
     if(r.plantingDates&&typeof r.plantingDates==='object')plantingDates=r.plantingDates;
     // [NEW] 設定シートから水管理項目を反映
     if(r.settings&&r.settings.kandoshi_days&&typeof r.settings.kandoshi_days==='object')kandoshiDays=r.settings.kandoshi_days;
+    if(r.settings&&typeof r.settings.herb_hours==='number')herbHours=r.settings.herb_hours;
+    if(r.settings&&typeof r.settings.alert_days==='number')alertDays=r.settings.alert_days;
+    if(r.settings&&Array.isArray(r.settings.notify_times))window._notifyTimes=r.settings.notify_times;
     if(r.settings&&r.settings.status_items&&Array.isArray(r.settings.status_items)){
       // 全項目を保持（管理者画面でOFF項目も表示するため）
       allStatusItems=r.settings.status_items.sort((a,b)=>a.order-b.order);
@@ -2162,11 +2167,11 @@ function openAdminMenu() {
   if (existing) existing.remove();
 
   const ADMIN_SECTIONS = [
-    { id: 'status_items', label: '📋 水管理項目の設定',         status: 'active' },
-    { id: 'water_rules',  label: '💧 水管理ルール（除草剤・中干し）', status: 'planned' },
-    { id: 'alert_thresh', label: '🚨 アラート閾値の設定',        status: 'planned' },
-    { id: 'notify',       label: '🔔 LINE WORKS通知設定',        status: 'planned' },
-    { id: 'data_mgmt',    label: '🗄 データ管理',               status: 'planned' },
+    { id: 'status_items', label: '📋 水管理項目の設定',           status: 'active' },
+    { id: 'water_rules',  label: '💧 水管理ルール（除草剤・中干し）', status: 'active' },
+    { id: 'alert_thresh', label: '🚨 アラート閾値の設定',          status: 'active' },
+    { id: 'notify',       label: '🔔 LINE WORKS通知設定',          status: 'planned' },
+    { id: 'data_mgmt',    label: '🗄 データ管理',                 status: 'planned' },
   ];
 
   const modal = document.createElement('div');
@@ -2214,7 +2219,9 @@ function openAdminMenu() {
 // 各セクションの画面を生成
 function openAdminSection(sectionId, modal, box) {
   if (sectionId === 'status_items') openStatusItemsEditor(modal, box);
-  if (sectionId === 'mizushi_init') confirmMizushiInit(modal);
+  if (sectionId === 'water_rules')  openWaterRulesEditor(modal, box);
+  if (sectionId === 'alert_thresh') openAlertThreshEditor(modal, box);
+  if (sectionId === 'notify')       openNotifyEditor(modal, box);
 }
 
 async function confirmMizushiInit(modal) {
@@ -2230,6 +2237,184 @@ async function confirmMizushiInit(modal) {
   } catch(e) {
     alert('保存に失敗しました。電波状況を確認してください。');
   }
+}
+
+
+// ============================================================
+// 管理者設定：水管理ルール（除草剤・中干し目安）
+// ============================================================
+async function openWaterRulesEditor(modal, box) {
+  box.innerHTML = '';
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:16px;';
+  const backBtn = document.createElement('button');
+  backBtn.textContent = '◀ 戻る';
+  backBtn.style.cssText = 'background:none;border:none;color:#2C4A1E;font-size:14px;cursor:pointer;font-weight:700;padding:0;';
+  backBtn.onclick = () => openAdminMenu();
+  header.appendChild(backBtn);
+  header.innerHTML += '<h2 style="margin:0;font-size:17px;color:#2C4A1E;flex:1;">💧 水管理ルール</h2>';
+  header.insertBefore(backBtn, header.firstChild);
+  box.appendChild(header);
+
+  // 除草剤カウントダウン時間
+  const herbSection = document.createElement('div');
+  herbSection.style.cssText = 'margin-bottom:20px;';
+  herbSection.innerHTML = '<h3 style="font-size:13px;color:#333;margin:0 0 8px;border-bottom:1px solid #eee;padding-bottom:6px;">除草剤カウントダウン</h3>'
+    +'<div style="display:flex;align-items:center;gap:10px;">'
+    +'<label style="font-size:13px;">止水まで</label>'
+    +'<input type="number" id="admin-herb-hours" min="1" max="240" value="'+herbHours+'" style="width:70px;padding:6px;border:1.5px solid #ddd;border-radius:8px;font-size:15px;text-align:center;">'
+    +'<label style="font-size:13px;">時間</label></div>'
+    +'<p style="font-size:11px;color:#888;margin:6px 0 0;">現在の設定：'+herbHours+'時間</p>';
+  box.appendChild(herbSection);
+
+  // 品種別中干し目安日数
+  const kdSection = document.createElement('div');
+  kdSection.innerHTML = '<h3 style="font-size:13px;color:#333;margin:0 0 8px;border-bottom:1px solid #eee;padding-bottom:6px;">品種別 中干し目安日数</h3>';
+  const kdGrid = document.createElement('div');
+  kdGrid.style.cssText = 'display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;';
+  CROP_GROUPS.forEach(g => {
+    const lbl = document.createElement('span');
+    lbl.textContent = g.label;
+    lbl.style.cssText = 'font-size:13px;';
+    const inp = document.createElement('input');
+    inp.type = 'number';
+    inp.id = 'kd-'+g.key;
+    inp.min = 1; inp.max = 30;
+    inp.value = kandoshiDays[g.key] || 7;
+    inp.style.cssText = 'width:60px;padding:5px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;text-align:center;';
+    const unit = document.createElement('span');
+    unit.textContent = '日';
+    unit.style.cssText = 'font-size:12px;color:#666;';
+    kdGrid.appendChild(lbl);
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;align-items:center;gap:4px;';
+    wrap.appendChild(inp); wrap.appendChild(unit);
+    kdGrid.appendChild(wrap);
+  });
+  kdSection.appendChild(kdGrid);
+  box.appendChild(kdSection);
+
+  // 保存ボタン
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = '保存';
+  saveBtn.style.cssText = 'width:100%;padding:13px;background:#2C4A1E;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:16px;';
+  saveBtn.onclick = async () => {
+    const newHerbHours = parseInt(document.getElementById('admin-herb-hours').value) || 72;
+    const newKd = {};
+    CROP_GROUPS.forEach(g => { newKd[g.key] = parseInt(document.getElementById('kd-'+g.key).value) || 7; });
+    saveBtn.textContent = '保存中...'; saveBtn.disabled = true;
+    try {
+      await postToGAS({action:'save_settings',password:adminPassword,key:'herb_hours',value:newHerbHours});
+      await postToGAS({action:'save_settings',password:adminPassword,key:'kandoshi_days',value:newKd});
+      await loadRecords();
+      showToast('✅ 水管理ルールを保存しました');
+      modal.remove();
+    } catch(e) { alert('保存に失敗しました'); saveBtn.textContent='保存'; saveBtn.disabled=false; }
+  };
+  box.appendChild(saveBtn);
+}
+
+// ============================================================
+// 管理者設定：アラート閾値
+// ============================================================
+async function openAlertThreshEditor(modal, box) {
+  box.innerHTML = '';
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:16px;';
+  const backBtn = document.createElement('button');
+  backBtn.textContent = '◀ 戻る';
+  backBtn.style.cssText = 'background:none;border:none;color:#2C4A1E;font-size:14px;cursor:pointer;font-weight:700;padding:0;';
+  backBtn.onclick = () => openAdminMenu();
+  header.appendChild(backBtn);
+  header.innerHTML += '<h2 style="margin:0;font-size:17px;color:#2C4A1E;flex:1;">🚨 アラート閾値</h2>';
+  header.insertBefore(backBtn, header.firstChild);
+  box.appendChild(header);
+
+  const section = document.createElement('div');
+  section.style.cssText = 'margin-bottom:16px;';
+  section.innerHTML = '<h3 style="font-size:13px;color:#333;margin:0 0 8px;border-bottom:1px solid #eee;padding-bottom:6px;">要確認アラート</h3>'
+    +'<div style="display:flex;align-items:center;gap:10px;">'
+    +'<label style="font-size:13px;">最終記録から</label>'
+    +'<input type="number" id="admin-alert-days" min="1" max="30" value="'+alertDays+'" style="width:60px;padding:6px;border:1.5px solid #ddd;border-radius:8px;font-size:15px;text-align:center;">'
+    +'<label style="font-size:13px;">日超でアラート</label></div>'
+    +'<p style="font-size:11px;color:#888;margin:6px 0 0;">現在の設定：'+alertDays+'日超</p>';
+  box.appendChild(section);
+
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = '保存';
+  saveBtn.style.cssText = 'width:100%;padding:13px;background:#2C4A1E;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px;';
+  saveBtn.onclick = async () => {
+    const val = parseInt(document.getElementById('admin-alert-days').value) || 4;
+    saveBtn.textContent = '保存中...'; saveBtn.disabled = true;
+    try {
+      await postToGAS({action:'save_settings',password:adminPassword,key:'alert_days',value:val});
+      await loadRecords();
+      showToast('✅ アラート閾値を保存しました');
+      modal.remove();
+    } catch(e) { alert('保存に失敗しました'); saveBtn.textContent='保存'; saveBtn.disabled=false; }
+  };
+  box.appendChild(saveBtn);
+}
+
+// ============================================================
+// 管理者設定：LINE WORKS通知設定
+// ============================================================
+async function openNotifyEditor(modal, box) {
+  box.innerHTML = '';
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:16px;';
+  const backBtn = document.createElement('button');
+  backBtn.textContent = '◀ 戻る';
+  backBtn.style.cssText = 'background:none;border:none;color:#2C4A1E;font-size:14px;cursor:pointer;font-weight:700;padding:0;';
+  backBtn.onclick = () => openAdminMenu();
+  header.appendChild(backBtn);
+  header.innerHTML += '<h2 style="margin:0;font-size:17px;color:#2C4A1E;flex:1;">🔔 通知設定</h2>';
+  header.insertBefore(backBtn, header.firstChild);
+  box.appendChild(header);
+
+  // 現在の設定を取得（GASのsettingsから読む想定、app側ではr.settings.notify_timesを保持）
+  const currentTimes = (window._notifyTimes || [7, 12]);
+  const note = document.createElement('p');
+  note.style.cssText = 'font-size:11px;color:#888;margin:0 0 14px;background:#f9f9f9;padding:8px 10px;border-radius:8px;';
+  note.innerHTML = '⚠️ GASのトリガーを「毎時1回」に変更してください。<br>設定した時間台に自動通知されます。';
+  box.appendChild(note);
+
+  const section = document.createElement('div');
+  section.innerHTML = '<h3 style="font-size:13px;color:#333;margin:0 0 10px;border-bottom:1px solid #eee;padding-bottom:6px;">通知時間帯（複数選択可）</h3>';
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:16px;';
+  [6,7,8,9,10,11,12,13,14,15,16,17].forEach(h => {
+    const btn = document.createElement('button');
+    btn.textContent = h+'時';
+    btn.dataset.hour = h;
+    const isSelected = currentTimes.includes(h);
+    btn.style.cssText = 'padding:8px 4px;border-radius:8px;border:1.5px solid '+(isSelected?'#2C4A1E':'#ddd')+';background:'+(isSelected?'#f0fff4':'#fff')+';color:'+(isSelected?'#2C4A1E':'#666')+';font-size:13px;cursor:pointer;';
+    btn.onclick = () => {
+      const active = btn.style.borderColor === 'rgb(44, 74, 30)';
+      btn.style.borderColor = active?'#ddd':'#2C4A1E';
+      btn.style.background = active?'#fff':'#f0fff4';
+      btn.style.color = active?'#666':'#2C4A1E';
+    };
+    grid.appendChild(btn);
+  });
+  section.appendChild(grid);
+  box.appendChild(section);
+
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = '保存';
+  saveBtn.style.cssText = 'width:100%;padding:13px;background:#2C4A1E;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;';
+  saveBtn.onclick = async () => {
+    const selected = [...grid.querySelectorAll('button')].filter(b=>b.style.borderColor==='rgb(44, 74, 30)').map(b=>parseInt(b.dataset.hour));
+    if(selected.length===0){alert('少なくとも1つの時間を選択してください');return;}
+    saveBtn.textContent = '保存中...'; saveBtn.disabled = true;
+    try {
+      await postToGAS({action:'save_settings',password:adminPassword,key:'notify_times',value:selected});
+      window._notifyTimes = selected;
+      showToast('✅ 通知設定を保存しました');
+      modal.remove();
+    } catch(e) { alert('保存に失敗しました'); saveBtn.textContent='保存'; saveBtn.disabled=false; }
+  };
+  box.appendChild(saveBtn);
 }
 
 // 水管理項目の設定画面
