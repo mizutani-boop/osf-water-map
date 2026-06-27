@@ -2251,8 +2251,7 @@ async function openWaterRulesEditor(modal, box) {
   backBtn.textContent = '◀ 戻る';
   backBtn.style.cssText = 'background:none;border:none;color:#2C4A1E;font-size:14px;cursor:pointer;font-weight:700;padding:0;';
   backBtn.onclick = () => openAdminMenu();
-  header.appendChild(backBtn);
-  header.innerHTML += '<h2 style="margin:0;font-size:17px;color:#2C4A1E;flex:1;">💧 水管理ルール</h2>';
+  header.innerHTML = '<h2 style="margin:0;font-size:17px;color:#2C4A1E;flex:1;">💧 水管理ルール</h2>';
   header.insertBefore(backBtn, header.firstChild);
   box.appendChild(header);
 
@@ -2325,8 +2324,7 @@ async function openAlertThreshEditor(modal, box) {
   backBtn.textContent = '◀ 戻る';
   backBtn.style.cssText = 'background:none;border:none;color:#2C4A1E;font-size:14px;cursor:pointer;font-weight:700;padding:0;';
   backBtn.onclick = () => openAdminMenu();
-  header.appendChild(backBtn);
-  header.innerHTML += '<h2 style="margin:0;font-size:17px;color:#2C4A1E;flex:1;">🚨 アラート閾値</h2>';
+  header.innerHTML = '<h2 style="margin:0;font-size:17px;color:#2C4A1E;flex:1;">🚨 アラート閾値</h2>';
   header.insertBefore(backBtn, header.firstChild);
   box.appendChild(header);
 
