@@ -2450,6 +2450,8 @@ function openStatusItemsEditor(modal, box) {
     currentItems.forEach((item, idx) => {
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;background:#f9f9f9;border-radius:8px;border:1px solid #eee;';
+      // 基幹ステータスのロック判定（最初に行う）
+      const isLocked = LOCKED_STATUSES.has(item.label);
       // 上下移動ボタン（スマホ対応）
       const upBtn = document.createElement('button');
       upBtn.textContent = '🔼';
@@ -2483,7 +2485,6 @@ function openStatusItemsEditor(modal, box) {
       colorPicker.oninput = () => { currentItems[idx].color = colorPicker.value; };
 
       // 項目名（基幹ステータスはロック）
-      const isLocked = LOCKED_STATUSES.has(item.label);
       const input = document.createElement('input');
       input.type = 'text';
       input.value = item.label;
